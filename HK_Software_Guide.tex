@@ -1,0 +1,1186 @@
+\documentclass{article}
+\usepackage[letterpaper,top=1cm,bottom=2cm,left=2cm,right=2cm,marginparwidth=1.5cm]{geometry}
+
+% Language setting
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+
+
+% Font e simboli
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amssymb, amsmath, stmaryrd, centernot}
+\usepackage{tablefootnote}
+\usepackage{enumitem}
+\usepackage{wrapfig, caption, floatflt}
+\usepackage{graphicx}
+\usepackage{floatrow} 
+\usepackage{subcaption}
+\usepackage{placeins}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\lstdefinestyle{terminal}{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{black!5},
+    frame=single,
+    breaklines=true,
+    columns=fullflexible
+}
+\lstdefinelanguage{SingularityDef}{
+    morekeywords={
+        Bootstrap,From,Stage,
+        %help,%labels,%files,%environment,%post,%runscript,%startscript,%test,%setup
+    },
+    sensitive=true,
+    morecomment=[l]{\#},
+    morestring=[b]",
+    morestring=[b]'
+}
+
+\lstdefinestyle{defstyle}{
+    language=SingularityDef,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\bfseries,
+    commentstyle=\itshape,
+    stringstyle=\ttfamily,
+    breaklines=true,
+    columns=fullflexible,
+    keepspaces=true,
+    showstringspaces=false
+}
+
+\lstdefinestyle{bashstyle}{
+    language=bash,
+    basicstyle=\ttfamily\small,
+    numbers=left,
+    numberstyle=\tiny,
+    frame=single,
+    breaklines=true,
+    tabsize=4,
+    showstringspaces=false,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{teal}
+}
+
+% Numerazione interna
+\numberwithin{table}{subsection}
+\numberwithin{figure}{subsection}
+\numberwithin{equation}{subsection}
+\numberwithin{footnote}{subsection}
+
+% Hyperref
+\usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
+
+\title{HK Software guide}
+\author{Alberto Montanelli}
+\date{\today}
+\begin{document}
+\maketitle
+{\hypersetup{linkcolor=black}
+\tableofcontents
+}
+\newpage
+\section{Containerization}
+
+\subsection{What is a container?}
+
+A container is a self-contained software environment that includes an application
+together with the libraries, tools and runtime dependencies needed to execute it.
+The main idea is to make the software reproducible and portable: instead of
+installing all packages manually on every machine, one builds a container image
+once and then runs it wherever a compatible container runtime is available.\\
+\newline
+A \textbf{container image} can be thought of as a frozen snapshot of a working software
+environment. For example \texttt{fiTQun\_latest.sif}
+is Apptainer image containing a predefined software setup.
+
+\subsection{Docker and Apptainer}
+
+Two common container tools are Docker and Apptainer.
+
+\paragraph{Docker.}
+Docker is widely used to build, distribute and run container images. Images are
+usually written through a \texttt{Dockerfile} and can be downloaded from
+registries such as Docker Hub or GitHub Container Registry.\\
+For example:
+\begin{lstlisting}[style=terminal]
+docker pull wcsim/wcsim:latest
+\end{lstlisting}
+downloads a Docker image from Docker Hub.
+
+\paragraph{Apptainer.}
+Apptainer, formerly Singularity, is commonly used in HPC environments. It is
+designed to run containers without requiring root privileges from the user. It
+can run local \texttt{.sif} images and can also pull images from Docker-compatible
+registries.\\
+For example:
+\begin{lstlisting}[style=terminal]
+apptainer pull wcsim_latest.sif docker://wcsim/wcsim:latest
+\end{lstlisting}
+downloads a Docker image and converts it into an Apptainer \texttt{.sif} image.
+
+\subsection{Where container images can be stored}
+
+A container image is just a file. For Apptainer, the usual image format is
+\texttt{.sif}. This means that the image can be stored:
+
+\begin{itemize}
+    \item on the local machine;
+    \item on a remote server;
+    \item in a shared filesystem accessible from several machines;
+    \item in a project directory on a cluster.
+\end{itemize}
+If the image is stored on a shared filesystem, different users or different
+compute nodes can run the same software environment without reinstalling it.
+
+\subsection{Basic Apptainer commands}
+
+\subsubsection{Check that Apptainer is available}
+
+\begin{lstlisting}[style=terminal]
+apptainer --version
+\end{lstlisting}
+
+\subsubsection{Run a command inside a container}
+
+The most common command is \texttt{apptainer exec}. It runs a command inside the
+container and then exits.
+
+\begin{lstlisting}[style=terminal]
+apptainer exec image.sif command
+\end{lstlisting}
+Example:
+\begin{lstlisting}[style=terminal]
+apptainer exec fiTQun_latest.sif which root
+\end{lstlisting}
+With an environment setup script:
+\begin{lstlisting}[style=terminal]
+apptainer exec fiTQun_latest.sif bash ./fiTQun_env.sh which runfiTQun
+\end{lstlisting}
+In this example, \texttt{fiTQun\_env.sh} sets the paths to fiTQun, ROOT and
+WCSimRoot before executing the requested command.
+
+\subsubsection{Open an interactive shell}
+
+To enter the container interactively:
+
+\begin{lstlisting}[style=terminal]
+apptainer shell image.sif
+\end{lstlisting}
+Inside the shell, one can run commands as if working inside the container:
+\begin{lstlisting}[style=terminal]
+which root
+which runfiTQun
+which WCSim
+\end{lstlisting}
+To exit:
+\begin{lstlisting}[style=terminal]
+exit
+\end{lstlisting}
+However, one important point must be kept in mind: Apptainer usually binds the current working directory and the user
+home directory from the host system into the container. Therefore, if the container is opened from a directory on the host machine, running \texttt{ls} show the content of the current host directory, not the internal software
+directories of the container. Inside the shell, one can run \texttt{ls /} to look at the actual content of the container.
+In the following a demonstrative example is shown:
+\begin{lstlisting}[style=terminal]
+[cc@marduk HyperKamiokande]$ ls
+fiTQun_env.sh    fiTQun_latest.sif  fiTQun_WCSim.sif
+fiTQun_git_repo  fiTQun_WCSim.def   utils
+[cc@marduk HyperKamiokande]$ apptainer shell fiTQun_WCSim.sif
+Apptainer> ls
+fiTQun_env.sh	 fiTQun_latest.sif  fiTQun_WCSim.sif
+fiTQun_git_repo  fiTQun_WCSim.def   utils
+Apptainer> ls /
+bin   dev	   etc	 lib	lost+found  mnt  proc  run   singularity  sys  usr
+boot  environment  home  lib64	media	    opt  root  sbin  srv	  tmp  var
+Apptainer> cd usr
+bash: cd: usr: No such file or directory
+Apptainer> cd /usr
+\end{lstlisting}
+
+
+\subsubsection{Pull an image from a registry}
+
+Apptainer can pull images from Docker-compatible registries and convert them to
+\texttt{.sif} format.\\
+From Docker Hub:
+\begin{lstlisting}[style=terminal]
+apptainer pull wcsim_latest.sif docker://wcsim/wcsim:latest
+\end{lstlisting}
+From GitHub Container Registry:
+\begin{lstlisting}[style=terminal]
+apptainer pull hk_software.sif docker://ghcr.io/hyperk/hk-software:0.0.2
+\end{lstlisting}
+In the case of fiTQun:
+\begin{lstlisting}[style=terminal]
+apptainer pull namefile.sif docker://registry.git.hyperk.org/hyperk/recon/fitqun:latest
+\end{lstlisting}
+
+\subsubsection{Build an image from a definition file}
+
+An Apptainer image can be built from a definition file:
+
+\begin{lstlisting}[style=terminal]
+apptainer build output_image.sif recipe.def
+\end{lstlisting}
+Example:
+\begin{lstlisting}[style=terminal]
+apptainer build fiTQun_WCSim.sif fiTQun_WCSim.def
+\end{lstlisting}
+The definition file describes the base image, the installation commands and the environment variables that should be available inside the final image.\\
+On some systems, building an image may require root privileges because the build process has to install packages and write into system directories inside the container image. If the system supports user namespaces, Apptainer can emulate
+this with:
+\begin{lstlisting}[style=terminal]
+apptainer build --fakeroot output_image.sif recipe.def
+\end{lstlisting}
+The option \texttt{--fakeroot} does not make the user root on the host machine, it only gives the build process root-like privileges inside the isolated build environment. This is useful, for example, when the definition file contains
+commands such as:
+\begin{lstlisting}[style=terminal]
+yum install ...
+apt-get install ...
+mkdir /usr/local/hk/...
+\end{lstlisting}
+Without \texttt{--fakeroot}, these operations may fail if the user does not have the required permissions. Whether \texttt{--fakeroot} works depends on the configuration of the server or cluster.
+
+\subsubsection{Inspect an image}
+
+The command \texttt{apptainer inspect} is used to read metadata stored inside an image without opening an interactive shell.\\
+The general command is:
+\begin{lstlisting}[style=terminal]
+apptainer inspect image.sif
+\end{lstlisting}
+This gives general information about the image. More specific options are often more useful.\\
+To inspect the environment variables defined by the image:
+\begin{lstlisting}[style=terminal]
+apptainer inspect --environment image.sif
+\end{lstlisting}
+For example, in the image used here this command shows variables such as:
+\begin{lstlisting}[style=terminal]
+export FITQUN_SRC=/usr/local/hk/fiTQun
+export FITQUN_INSTALL=/usr/local/hk/fiTQun/install-Linux_x86_64-gcc_8-python_3.12.1
+export ROOT_INSTALL=/usr/local/hk/ROOT/install-Linux_x86_64-gcc_8-python_3.12.1
+export GEANT4_INSTALL=/usr/local/hk/Geant4/install-10.3.3
+export WCSIM_HOME=/usr/local/hk/WCSimFull
+export WCSIM_INSTALL_DIR=/usr/local/hk/WCSimFull/install
+\end{lstlisting}
+This is useful to understand which software paths were stored in the image at build time.\\
+To inspect the runscript:
+\begin{lstlisting}[style=terminal]
+apptainer inspect --runscript image.sif
+\end{lstlisting}
+For example, the runscript of the test image prints:
+\begin{lstlisting}[style=terminal]
+echo "fiTQun + full WCSim test image"
+echo "Use:"
+echo "  bash /usr/local/hk/fitqun_wcsim_env.sh which WCSim"
+echo "  bash /usr/local/hk/fitqun_wcsim_env.sh which runfiTQun"
+\end{lstlisting}
+This means that running:
+\begin{lstlisting}[style=terminal]
+apptainer run image.sif
+\end{lstlisting}
+will not start WCSim or fiTQun directly. It will only print these instructions.
+
+\subsubsection{Bind host directories inside the container}
+A container image contains the software environment, but input and output data are often stored outside the image. The \texttt{--bind} option is used to mount a directory from the host system inside the container.\\
+The general syntax is:
+\begin{lstlisting}[style=terminal]
+apptainer exec --bind /host/path:/container/path image.sif command
+\end{lstlisting}
+Here:
+\begin{itemize}
+    \item \texttt{/host/path} is the directory on the real machine;
+    \item \texttt{/container/path} is the path where that directory will appear
+    inside the container.
+\end{itemize}
+For example:
+\begin{lstlisting}[style=terminal]
+apptainer exec \
+    --bind /data/hk:/data/hk \
+    fiTQun_WCSim.sif \
+    bash /usr/local/hk/fiTQun_WCSim_env.sh \
+    ls /data/hk
+\end{lstlisting}
+This makes the host directory \texttt{/data/hk} visible inside the container as \texttt{/data/hk}.\\
+This is useful, for example, when WCSim output ROOT files are stored outside the container and one wants to process them with fiTQun inside the container:
+\begin{lstlisting}[style=terminal]
+apptainer exec \
+    --bind /data/hk:/data/hk \
+    fiTQun_WCSim.sif \
+    bash /usr/local/hk/fiTQun_WCSim_env.sh \
+    runfiTQun \
+        -n 1 \
+        -r /data/hk/fitqun_output.root \
+        -p /path/to/HyperK.parameters.dat \
+        /data/hk/wcsim_input.root
+\end{lstlisting}
+In this example:
+\begin{itemize}
+    \item the file \texttt{wcsim\_input.root} is physically stored on the host machine in \texttt{/data/hk};
+    \item the container sees it as \texttt{/data/hk/wcsim\_input.root};
+    \item fiTQun runs inside the container;
+    \item the output file \texttt{fitqun\_output.root} is written back to the host directory.
+\end{itemize}
+One can also bind a directory to a different path inside the container:
+\begin{lstlisting}[style=terminal]
+apptainer exec \
+    --bind /scratch/cc/hk_data:/data \
+    fiTQun_WCSim.sif \
+    bash /usr/local/hk/fiTQun_WCSim_env.sh \
+    ls /data
+\end{lstlisting}
+Here, the host directory \texttt{/scratch/cc/hk\_data} appears inside the
+container as \texttt{/data}.
+
+\subsection{Practical remarks}
+Container images should be treated as versioned software environments. If WCSim, fiTQun, ROOT or Geant4 are updated, a new image should be built and saved with a clear name, for example:
+\begin{lstlisting}[style=terminal]
+fitqun_plus_wcsim_test_v1.sif
+fitqun_plus_wcsim_test_v2.sif
+\end{lstlisting}
+For reproducibility, it is useful to store a small text file inside or next to the image containing the relevant software versions:
+\begin{lstlisting}[style=terminal]
+ROOT version
+Geant4 version
+WCSim commit
+fiTQun commit
+WCSimRoot version
+build date
+\end{lstlisting}
+This avoids ambiguity when results are produced at different times or on
+different machines.
+\section{WCSim}
+
+\subsection{Purpose of WCSim}
+
+WCSim is a Geant4-based simulation program for water Cherenkov detectors.
+It is used to simulate the detector geometry, particle propagation, Cherenkov
+light production, PMT response and detector-level output. Its main dependencies
+are \texttt{ROOT} and \texttt{Geant4}. \textbf{The output is stored in ROOT files using
+the WCSimRoot classes}, which can then be read by reconstruction software such
+as fiTQun.\\
+\newline
+In the context of this work, WCSim is needed for event simulation, while fiTQun
+is used for event reconstruction. This distinction is important: an installation
+containing only WCSimRoot is sufficient for reading WCSim output files, but it is
+not sufficient to generate new simulated events.
+
+\subsection{WCSim as a Docker image}
+
+The \href{https://hub.docker.com/r/wcsim/wcsim}{Docker Hub repository}
+\texttt{wcsim/wcsim} provides pre-built Docker images of WCSim. In principle,
+one can pull the latest image with:
+\begin{lstlisting}[style=terminal]
+docker pull wcsim/wcsim:latest
+\end{lstlisting}
+or convert/pull it directly with \texttt{apptainer}:
+\begin{lstlisting}[style=terminal]
+apptainer pull wcsim_latest.sif docker://wcsim/wcsim:latest
+\end{lstlisting}
+However, these images do not appear to be actively maintained since they were last pushed approximately five years ago. For this reason, this option isn't ideal for the present setup, where a more recent WCSim version is needed for a more probable compatibility with the existing fiTQun
+container.
+
+\subsection{WCSim Dockerfile}
+
+The \href{https://github.com/WCSim/WCSim}{WCSim GitHub repository} also
+contains a \texttt{Dockerfile}. This file starts from:
+\begin{lstlisting}[style=defstyle]
+FROM wcsim/wcsim:base
+\end{lstlisting}
+and then clones the WCSim repository, creates separate build and install
+directories, runs CMake, and installs WCSim:
+\begin{lstlisting}[style=defstyle]
+RUN git clone https://github.com/WCSim/WCSim
+RUN mkdir $HYPERKDIR/WCSim-build $HYPERKDIR/WCSim-install
+
+WORKDIR $HYPERKDIR/WCSim-build
+
+RUN source $HYPERKDIR/env-WCSim.sh &&\
+    cmake3 $HYPERKDIR/WCSim &&\
+    make -j`nproc` install
+\end{lstlisting}
+This means that the Dockerfile provides a recipe to build WCSim inside a base environment that already contains the required dependencies. The base image is therefore the important part: it must provide a working compiler, ROOT, Geant4 and the Geant4 data files.
+
+\subsection{WCSim CI workflows}
+\label{WCSim_CI}
+The WCSim repository uses GitHub Actions for build and physics validation tests.\\
+The workflow \texttt{build\_and\_physics\_test.yml} runs inside the container:
+\begin{lstlisting}[style=defstyle]
+docker://ghcr.io/hyperk/hk-software:0.0.2
+\end{lstlisting}
+which provides the software prerequisites used by the automated tests. The
+workflow then checks out the WCSim source code, checks out the separate
+\href{https://github.com/WCSim/Validation}{WCSim Validation} repository, sets up the environment, installs additional packages such as HepMC3, builds WCSim, and runs the validation tests. In practice, the CI uses a
+prepared base image containing the required dependencies and then builds the current WCSim source code inside it.\\
+\textbf{This base image (\texttt{docker://ghcr.io/hyperk/hk-software:0.0.2)} is therefore the most relevant reference environment for WCSim}, since it is the one used by the current WCSim automated
+build and validation workflow.
+
+\section{fiTQun}
+
+\subsection{Purpose of fiTQun}
+
+fiTQun is a likelihood-based reconstruction software package for water
+Cherenkov detectors. It is used to reconstruct event-level quantities such as
+the interaction vertex, particle direction, momentum, number of rings and
+particle identification. In the context of this work, fiTQun is used as the
+event reconstruction software, while WCSim is used as the detector simulation
+software.\\
+\newline
+This distinction is important. WCSim simulates the detector response starting
+from particle propagation and Cherenkov light production, while fiTQun takes as
+input already simulated detector-level information, such as PMT hit times and
+charges, and performs the reconstruction. Therefore, fiTQun does not need the
+full Geant4 simulation machinery at runtime if the input ROOT files have already
+been produced by WCSim. It only needs the classes required to read the WCSim
+ROOT output, namely the WCSimRoot interface.
+
+\subsection{fiTQun Docker image}
+
+The starting point of this work was the pre-existing Apptainer image:
+\begin{lstlisting}[style=terminal]
+fiTQun_latest.sif
+\end{lstlisting}
+which was obtained from the \texttt{latest} container image produced by the \href{https://git.hyperk.org/hyperk/recon/fiTQun/container_registry/25?after=MTA}{fiTQun GitHub deployment} pipeline.\\
+\newline
+The fiTQun repository contains a single Dockerfile:
+\begin{lstlisting}[style=terminal]
+./Dockerfile
+\end{lstlisting}
+The Dockerfile starts from the Hyper-K installation framework image:
+\begin{lstlisting}[style=defstyle]
+FROM registry.git.hyperk.org/hyperk/hk-pilot:latest
+\end{lstlisting}
+This means that the fiTQun image is not built from a generic Linux base image.
+Instead, it is built on top of \texttt{hk-pilot}, the Hyper-K software
+installation framework.\\
+The Dockerfile then copies a few already-built external packages from the
+\texttt{hk-meta-externals:latest} image:
+\begin{lstlisting}[style=defstyle]
+COPY --from=registry.git.hyperk.org/hyperk/externals/hk-meta-externals:latest \
+    /usr/local/hk/ROOT /usr/local/hk/ROOT
+
+COPY --from=registry.git.hyperk.org/hyperk/externals/hk-meta-externals:latest \
+    /usr/local/hk/WCSimRoot /usr/local/hk/WCSimRoot
+
+COPY --from=registry.git.hyperk.org/hyperk/externals/hk-meta-externals:latest \
+    /usr/local/hk/ToolFrameworkCore /usr/local/hk/ToolFrameworkCore
+\end{lstlisting}
+Therefore, the image does not build \texttt{ROOT}, \texttt{WCSimRoot} or
+\texttt{ToolFrameworkCore} from source during the fiTQun image creation. These packages are inherited from a separate pre-built external image.\\
+The fiTQun repository itself is then copied into the image:
+\begin{lstlisting}[style=defstyle]
+COPY . /usr/local/hk/fiTQun
+\end{lstlisting}
+and fiTQun is installed through \texttt{hk-pilot}:
+\begin{lstlisting}[style=defstyle]
+WORKDIR /usr/local/hk
+RUN . /usr/local/hk/hk-pilot/setup.sh &&\
+    hkp install -r --exclude-externals fiTQun
+\end{lstlisting}
+The option \texttt{--exclude-externals} is important: it means that the external dependencies are not rebuilt by this command. Instead, the build uses the already available packages copied from \texttt{hk-meta-externals:latest}.\\
+\newline
+Thus, \textbf{the production chain of the \texttt{fiTQun:latest} image} can be summarized
+as:
+\begin{lstlisting}[style=terminal]
+GitHub workflow
+  -> Dockerfile
+    -> FROM hk-pilot:latest
+    -> copy ROOT from hk-meta-externals:latest
+    -> copy WCSimRoot from hk-meta-externals:latest
+    -> copy ToolFrameworkCore from hk-meta-externals:latest
+    -> copy fiTQun source code
+    -> hkp install -r --exclude-externals fiTQun
+\end{lstlisting}
+
+\subsection{fiTQun installation through hk-pilot}
+
+The fiTQun repository contains an \texttt{hkinstall.py} file which defines how
+\texttt{hk-pilot} should install the package. The relevant part is:
+\begin{lstlisting}[style=defstyle]
+class fiTQun(CMake):
+
+    def __init__(self, path):
+        super().__init__(path)
+
+        self._package_name = "fiTQun"
+        self._cmakelist_path = "."
+        self._cmake_options = {
+            "CMAKE_CXX_STANDARD": "14",
+            "HEMI_CUDA_DISABLE": "ONE",
+            "fiTQun_PerfTracker_ENABLED": "OFF",
+            "CMAKE_BUILD_TYPE": "Release"
+        }
+\end{lstlisting}
+This shows that fiTQun is installed as a CMake package through the generic
+\texttt{CMake} class provided by \texttt{hk-pilot}. The build is performed in
+release mode, using C++14, and with the performance tracker disabled.
+
+The custom post-install step only appends the \texttt{FITQUN\_ROOT} variable to
+the generated setup file:
+\begin{lstlisting}[style=defstyle]
+def post_install(self):
+    super().post_install()
+    with open(os.path.join(self._install_folder, "setup.sh"), "a") as file:
+        file.write(f"# FITQUN_ROOT variable\n")
+        file.write(f"export FITQUN_ROOT={self.path}\n")
+    return True
+\end{lstlisting}
+Therefore, the actual dependency resolution is not mainly encoded in
+\texttt{hkinstall.py}. The important dependency information is instead found in the CMake configuration files and in the external packages copied by the Dockerfile.\\
+In particular, the fiTQun CMake configuration searches for \texttt{WCSimRoot}:
+\begin{lstlisting}[style=terminal]
+find_package(WCSimRoot)
+\end{lstlisting}
+and the build defines:
+\begin{lstlisting}[style=terminal]
+NOSKLIBRARIES
+\end{lstlisting}
+This indicates that the image is built in the mode which does not rely on the Super-K libraries, but instead uses the WCSimRoot interface to read WCSim ROOT files.
+
+\subsection{Contents of the fiTQun latest image}
+
+The available executables inside the image were checked, showing that \texttt{runfiTQun} was available:
+\begin{lstlisting}[style=terminal]
+/usr/local/hk/fiTQun/install-Linux_x86_64-gcc_8-python_3.12.1/bin/runfiTQun
+\end{lstlisting}
+while \texttt{runfiTQunWC} and \texttt{WCSim} were not found.\\
+The image also contained setup scripts for the following packages:
+\begin{lstlisting}[style=terminal]
+/usr/local/hk/Catch2/install-Linux_x86_64-gcc_8-python_3.12.1/setup.sh
+/usr/local/hk/fiTQun/install-Linux_x86_64-gcc_8-python_3.12.1/setup.sh
+/usr/local/hk/hk-DataModel/install-Linux_x86_64-gcc_8-python_3.12.1/setup.sh
+/usr/local/hk/hk-pilot/setup.sh
+/usr/local/hk/ROOT/install-Linux_x86_64-gcc_8-python_3.12.1/setup.sh
+/usr/local/hk/ToolFrameworkCore/install-Linux_x86_64-gcc_8-python_3.12.1/setup.sh
+/usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1/setup.sh
+\end{lstlisting}
+Thus, the relevant packages present in the image are:
+\begin{itemize}
+    \item \texttt{fiTQun};
+    \item \texttt{ROOT};
+    \item \texttt{WCSimRoot};
+    \item \texttt{ToolFrameworkCore};
+    \item \texttt{hk-DataModel};
+    \item \texttt{Catch2};
+    \item \texttt{hk-pilot}.
+\end{itemize}
+On the other hand, the image does not contain:
+\begin{itemize}
+    \item the full WCSim executable;
+    \item the full WCSim simulation library;
+    \item \texttt{Geant4};
+    \item the Geant4 data files.
+\end{itemize}
+
+\subsection{WCSimRoot installation inside the fiTQun image}
+
+Although the full WCSim executable is not available, the image does contain a
+complete WCSimRoot installation. This was checked with:
+\begin{lstlisting}[style=terminal]
+apptainer exec fiTQun_latest.sif bash fiTQun_env.sh \
+    find /usr/local/hk/WCSimRoot -type f | head -100
+\end{lstlisting}
+The WCSimRoot installation contains headers, CMake configuration files, ROOT
+dictionaries and the shared library:
+\begin{lstlisting}[style=terminal]
+/usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1/include/WCSimRoot/WCSimRootEvent.hh
+/usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1/include/WCSimRoot/WCSimRootGeom.hh
+/usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1/include/WCSimRoot/WCSimRootOptions.hh
+/usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1/lib/cmake/WCSimRoot/WCSimRootConfig.cmake
+/usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1/lib/libWCSimRoot.so.1.12.29
+/usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1/lib/libWCSimRoot_rdict.pcm
+\end{lstlisting}
+The installed WCSimRoot version used by fiTQun is therefore:
+\begin{lstlisting}[style=terminal]
+WCSimRoot 1.12.29
+\end{lstlisting}
+
+This confirms that the image is equipped to read WCSim ROOT files through the
+WCSimRoot classes, but not to run the full WCSim simulation.
+
+\subsection{Runtime library dependencies of runfiTQun}
+
+The runtime dependencies of \texttt{runfiTQun} were checked showing that \texttt{runfiTQun} is linked against ROOT libraries,
+\texttt{WCSimRoot} and \texttt{ToolFrameworkCore}. The most relevant lines are:
+\begin{lstlisting}[style=terminal]
+libCore.so => /usr/local/hk/ROOT/install-Linux_x86_64-gcc_8-python_3.12.1/lib/libCore.so
+libRIO.so => /usr/local/hk/ROOT/install-Linux_x86_64-gcc_8-python_3.12.1/lib/libRIO.so
+libTree.so => /usr/local/hk/ROOT/install-Linux_x86_64-gcc_8-python_3.12.1/lib/libTree.so
+libWCSimRoot.so.1.12.29 => /usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1/lib/libWCSimRoot.so.1.12.29
+libToolFrameworkCore.so.3.0.0 => /usr/local/hk/ToolFrameworkCore/install-Linux_x86_64-gcc_8-python_3.12.1/lib/libToolFrameworkCore.so.3.0.0
+\end{lstlisting}
+No dependency on Geant4 libraries or on the full WCSim simulation library was
+found. In particular, there was no evidence of dependencies such as:
+\begin{lstlisting}[style=terminal]
+libG4run.so
+libG4tracking.so
+libG4geometry.so
+libWCSimCore.so
+\end{lstlisting}
+This is the main technical evidence that the \texttt{fiTQun:latest} image is a reconstruction image, not a complete simulation image.
+
+
+\subsection{Compatibility with full WCSim and unique image fiTQun+WCSim}
+
+From a software-interface point of view, fiTQun is compatible with WCSim through
+WCSimRoot. In other words, fiTQun does not need to be linked directly against
+the full WCSim simulation executable. It only needs a WCSimRoot version that is
+compatible with the ROOT files produced by WCSim.\\
+\newline
+For this reason, the most important compatibility point is the WCSimRoot version.
+The existing image uses:
+\begin{lstlisting}[style=terminal]
+WCSimRoot 1.12.29
+\end{lstlisting}
+If a full WCSim installation produces ROOT files using a different WCSimRoot schema, fiTQun may still run, but compatibility is not guaranteed.\\ 
+To obtain a single image capable of both generating WCSim events and
+reconstructing them with fiTQun, two possible strategies exist:
+\begin{itemize}
+    \item start from the existing \texttt{fiTQun\_latest.sif} image and add Geant4, the Geant4 data files and a full WCSim build;
+    \item start from a full WCSim image and build fiTQun on top of the same ROOT and WCSimRoot installation.
+\end{itemize}
+The second strategy is cleaner for production use. WCSim is the more constrained package, because it depends on Geant4, the Geant4 data files, ROOT and the compiler ABI. Once a consistent WCSim installation exists, fiTQun can be compiled against its WCSimRoot installation. This reduces the risk of having two different WCSimRoot versions in the same image.
+
+\section{Building of fiTQun+WCSim image}
+\subsection{Short summary}
+The starting point of this work was an already functional \texttt{fiTQun}
+Apptainer image:
+\begin{lstlisting}[style=terminal]
+fiTQun_latest.sif
+\end{lstlisting}
+This image contained:
+\begin{itemize}
+    \item \texttt{fiTQun};
+    \item \texttt{ROOT 6.26/16};
+    \item \texttt{WCSimRoot 1.12.29};
+\end{itemize}
+but did not contain:
+\begin{itemize}
+    \item the full WCSim executable;
+    \item \texttt{Geant4};
+    \item the Geant4 data files.
+\end{itemize}
+To obtain a single image capable of both simulating and reconstructing events, a
+new Apptainer image was built starting from \texttt{fiTQun\_latest.sif}. The new
+image added:
+\begin{itemize}
+    \item \texttt{Geant4 10.3.3};
+    \item the required Geant4 data files;
+    \item a full WCSim build;
+    \item the WCSim executable and macros.
+\end{itemize}
+The resulting image was:
+\begin{lstlisting}[style=terminal]
+fiTQun_WCSim.sif
+\end{lstlisting}
+The environment script inside the new image was:
+\begin{lstlisting}[style=terminal]
+fiTQun_WCSim_env.sh
+\end{lstlisting}
+This shell script is generated outside the container and it is built as executable with
+\begin{lstlisting}[style=terminal]
+chmod +x fiTQun_WCSim_env.sh
+\end{lstlisting}
+and the basic checks confirmed that the relevant executables were available:
+\begin{lstlisting}[style=terminal]
+apptainer exec ./fiTQun_WCSim.sif \
+    bash fiTQun_WCSim_env.sh which WCSim
+
+apptainer exec ./fiTQun_WCSim.sif \
+    bash fiTQun_WCSim_env.sh which geant4-config
+
+apptainer exec ./fiTQun_WCSim.sif \
+    bash fiTQun_WCSim_env.sh which runfiTQun
+
+apptainer exec ./fiTQun_WCSim.sif \
+    bash fiTQun_WCSim_env.sh which root
+\end{lstlisting}
+The output showed:
+\begin{lstlisting}[style=terminal]
+/usr/local/hk/WCSimFull/install/bin/WCSim
+/usr/local/hk/Geant4/install-10.3.3/bin/geant4-config
+/usr/local/hk/fiTQun/install-Linux_x86_64-gcc_8-python_3.12.1/bin/runfiTQun
+/usr/local/hk/ROOT/install-Linux_x86_64-gcc_8-python_3.12.1/bin/root
+\end{lstlisting}
+The Geant4 data files were also correctly available, as shown by environment variables such as:
+\begin{lstlisting}[style=terminal]
+G4LEDATA
+G4NEUTRONHPDATA
+G4LEVELGAMMADATA
+G4RADIOACTIVEDATA
+G4ENSDFSTATEDATA
+\end{lstlisting}
+Finally, running:
+\begin{lstlisting}[style=terminal]
+apptainer exec ./fiTQun_WCSim.sif \
+    bash fiTQun_WCSim_env.sh WCSim --help
+\end{lstlisting}
+confirmed that WCSim could start correctly and detect the Geant4 installation.
+\subsection{Building the combined fiTQun + WCSim image with a docker file}
+The build was performed using an Apptainer definition file:
+\begin{lstlisting}[style=terminal]
+fiTQun_WCSim.def
+\end{lstlisting}
+The complete script is shown in Appendix \ref{Appendix_B}.
+The image is built with:
+\begin{lstlisting}[style=terminal]
+apptainer build fiTQun_WCSim.sif fiTQun_WCSim.def
+\end{lstlisting}
+or, if root privileges are required:
+\begin{lstlisting}[style=terminal]
+sudo apptainer build fiTQun_WCSim.sif fiTQun_WCSim.def
+\end{lstlisting}
+The definition file uses the local fiTQun image as its starting point:
+\begin{lstlisting}[style=defstyle]
+Bootstrap: localimage
+From: ./fiTQun_latest.sif
+\end{lstlisting}
+This means that the new image does not rebuild fiTQun from source. Instead, it
+inherits the already working fiTQun installation from \texttt{fiTQun\_latest.sif}
+and adds the missing simulation components.
+
+\subsubsection{Starting point: the existing fiTQun image}
+
+The first part of the build script defines the paths already present in the original fiTQun image:
+\begin{lstlisting}[style=defstyle]
+export FITQUN_SRC=/usr/local/hk/fiTQun
+export FITQUN_INSTALL=/usr/local/hk/fiTQun/install-Linux_x86_64-gcc_8-python_3.12.1
+export WCSIMROOT_INSTALL=/usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1
+export ROOT_INSTALL=/usr/local/hk/ROOT/install-Linux_x86_64-gcc_8-python_3.12.1
+\end{lstlisting}
+These paths correspond to:
+\begin{itemize}
+    \item the fiTQun source directory;
+    \item the fiTQun installation directory;
+    \item the WCSimRoot installation already used by fiTQun;
+    \item the ROOT installation inherited from the original image.
+\end{itemize}
+The corresponding runtime variables are also set:
+\begin{lstlisting}[style=defstyle]
+export FITQUN_ROOT=${FITQUN_SRC}
+
+export PATH=${FITQUN_INSTALL}/bin:${ROOT_INSTALL}/bin:$PATH
+export LD_LIBRARY_PATH=${FITQUN_INSTALL}/lib:${WCSIMROOT_INSTALL}/lib:${ROOT_INSTALL}/lib:$LD_LIBRARY_PATH
+export ROOT_INCLUDE_PATH=${WCSIMROOT_INSTALL}/include/WCSimRoot:${WCSIMROOT_INSTALL}/include:$ROOT_INCLUDE_PATH
+\end{lstlisting}
+This is needed so that, during the build, the already installed ROOT and fiTQun
+components can be found. In particular, ROOT is initialized with:
+\begin{lstlisting}[style=defstyle]
+if [ -f ${ROOT_INSTALL}/bin/thisroot.sh ]; then
+    source ${ROOT_INSTALL}/bin/thisroot.sh
+fi
+\end{lstlisting}
+and its version is checked with:
+\begin{lstlisting}[style=terminal]
+root-config --version
+\end{lstlisting}
+\subsubsection{Installing build tools}
+
+The image then installs the tools needed to compile Geant4 and WCSim:
+\begin{lstlisting}[style=defstyle]
+apt-get update
+apt-get install -y git cmake make gcc g++ wget curl ca-certificates expat libexpat1-dev
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+\end{lstlisting}
+Alternative commands are included for systems using \texttt{dnf} or
+\texttt{yum}:
+\begin{lstlisting}[style=defstyle]
+dnf install -y git cmake make gcc gcc-c++ wget curl ca-certificates expat-devel
+\end{lstlisting}
+or:
+\begin{lstlisting}[style=defstyle]
+yum install -y git cmake make gcc gcc-c++ wget curl ca-certificates expat-devel
+\end{lstlisting}
+These packages are needed because the image has to download, configure and compile new software during the \texttt{\%post} stage. In particular:
+\begin{itemize}
+    \item \texttt{git} is needed to clone WCSim;
+    \item \texttt{cmake} is used to configure both Geant4 and WCSim;
+    \item \texttt{gcc} and \texttt{g++} are the compilers;
+    \item \texttt{make} performs the compilation;
+    \item \texttt{wget} is used to download the Geant4 source archive;
+    \item \texttt{expat} and \texttt{libexpat1-dev} are required by Geant4.
+\end{itemize}
+
+\subsubsection{Installing Geant4}
+
+The next step installs Geant4:
+\begin{lstlisting}[style=defstyle]
+export GEANT4_VERSION=10.3.3
+export GEANT4_HOME=/usr/local/hk/Geant4
+export GEANT4_SRC=${GEANT4_HOME}/geant4.${GEANT4_VERSION}
+export GEANT4_BUILD=${GEANT4_HOME}/build-${GEANT4_VERSION}
+export GEANT4_INSTALL=${GEANT4_HOME}/install-${GEANT4_VERSION}
+\end{lstlisting}
+Version \texttt{10.3.3} was chosen because it is the Geant4 version indicated as a supported reference version for WCSim in the Hyper-K software container environment. The source code is downloaded from the Geant4 GitLab repository:
+\begin{lstlisting}[style=defstyle]
+wget -O geant4.${GEANT4_VERSION}.tar.gz \
+    https://gitlab.cern.ch/geant4/geant4/-/archive/v${GEANT4_VERSION}/geant4-v${GEANT4_VERSION}.tar.gz
+
+tar -xzf geant4.${GEANT4_VERSION}.tar.gz
+mv geant4-v${GEANT4_VERSION} ${GEANT4_SRC}
+\end{lstlisting}
+Then a separate build directory is created:
+\begin{lstlisting}[style=defstyle]
+mkdir -p ${GEANT4_BUILD}
+cd ${GEANT4_BUILD}
+\end{lstlisting}
+Geant4 is configured with CMake:
+\begin{lstlisting}[style=defstyle]
+cmake ${GEANT4_SRC} \
+    -DCMAKE_INSTALL_PREFIX=${GEANT4_INSTALL} \
+    -DGEANT4_INSTALL_DATA=ON \
+    -DGEANT4_USE_OPENGL_X11=OFF \
+    -DGEANT4_USE_QT=OFF \
+    -DGEANT4_BUILD_MULTITHREADED=ON
+\end{lstlisting}
+The most important option is:
+\begin{lstlisting}[style=defstyle]
+-DGEANT4_INSTALL_DATA=ON
+\end{lstlisting}
+because WCSim needs the Geant4 external data files at runtime. Without these datasets, WCSim can fail with errors such as:
+\begin{lstlisting}[style=terminal]
+G4ENSDFSTATEDATA environment variable must be set
+\end{lstlisting}
+Graphical options are disabled:
+\begin{lstlisting}[style=defstyle]
+-DGEANT4_USE_OPENGL_X11=OFF
+-DGEANT4_USE_QT=OFF
+\end{lstlisting}
+because the image is intended mainly for batch simulation and reconstruction, not for interactive graphical visualization. Multithreading is enabled with:
+\begin{lstlisting}[style=defstyle]
+-DGEANT4_BUILD_MULTITHREADED=ON
+\end{lstlisting}
+Finally, Geant4 is compiled and installed:
+\begin{lstlisting}[style=defstyle]
+make -j$(nproc)
+make install
+\end{lstlisting}
+and its environment is initialized:
+\begin{lstlisting}[style=defstyle]
+source ${GEANT4_INSTALL}/bin/geant4.sh
+\end{lstlisting}
+The installed version is checked with:
+\begin{lstlisting}[style=terminal]
+geant4-config --version
+\end{lstlisting}
+
+\subsubsection{Installing full WCSim}
+
+After Geant4 has been installed, the full WCSim package is built. The relevant paths are:
+\begin{lstlisting}[style=defstyle]
+export WCSIM_HOME=/usr/local/hk/WCSimFull
+export WCSIM_SOURCE_DIR=${WCSIM_HOME}/WCSim
+export WCSIM_BUILD_DIR=${WCSIM_HOME}/build
+export WCSIM_INSTALL_DIR=${WCSIM_HOME}/install
+\end{lstlisting}
+The WCSim source code is cloned from GitHub:
+\begin{lstlisting}[style=defstyle]
+git clone https://github.com/WCSim/WCSim.git ${WCSIM_SOURCE_DIR}
+\end{lstlisting}
+A separate build directory is created:
+\begin{lstlisting}[style=defstyle]
+mkdir -p ${WCSIM_BUILD_DIR}
+cd ${WCSIM_BUILD_DIR}
+\end{lstlisting}
+WCSim is configured with:
+\begin{lstlisting}[style=defstyle]
+cmake ${WCSIM_SOURCE_DIR} \
+    -DCMAKE_INSTALL_PREFIX=${WCSIM_INSTALL_DIR} \
+    -DWCSim_WCSimRoot_only=OFF
+\end{lstlisting}
+The key option is:
+\begin{lstlisting}[style=defstyle]
+-DWCSim_WCSimRoot_only=OFF
+\end{lstlisting}
+This explicitly requests a full WCSim build, not only the WCSimRoot library. This is essential because the original fiTQun image already contained WCSimRoot, but did not contain the full WCSim executable. With this option, the build produces the actual simulation program:
+\begin{lstlisting}[style=terminal]
+WCSim
+\end{lstlisting}
+WCSim is then compiled and installed:
+\begin{lstlisting}[style=defstyle]
+make -j$(nproc)
+make install
+\end{lstlisting}
+At this point, the image contains:
+\begin{itemize}
+    \item the original fiTQun installation inherited from
+    \texttt{fiTQun\_latest.sif};
+    \item the original ROOT installation inherited from
+    \texttt{fiTQun\_latest.sif};
+    \item the original WCSimRoot installation used by fiTQun;
+    \item a new Geant4 installation;
+    \item a new full WCSim installation.
+\end{itemize}
+\textbf{IMPORTANT NOTE}
+The full WCSim installation added to the combined image was not obtained by reproducing the complete WCSim GitHub Actions validation workflow. Instead, a
+manual CMake-based installation was performed. The procedure follows the standard WCSim
+source-build approach: clone the WCSim repository, configure it with CMake,
+compile it and install it. The option \texttt{WCSim\_WCSimRoot\_only=OFF} was
+used to force a full WCSim build rather than a WCSimRoot-only installation.\\
+This differs from the official WCSim CI workflow, which uses a dedicated Hyper-K software base image and runs the WCSim validation chain, as described in section \ref{WCSim_CI}. 
+
+\subsubsection{Environment script written inside the image}
+
+The definition file also writes an environment script inside the image:
+\begin{lstlisting}[style=terminal]
+/usr/local/hk/fitqun_wcsim_env.sh
+\end{lstlisting}
+However, this internal script is redundant with respect to the external script shown in Appendix \ref{Appendix_A}:
+\begin{lstlisting}[style=terminal]
+fiTQun_WCSim_env.sh
+\end{lstlisting}
+which is the one actually used in this work. The external script is preferred because it is more complete and can be modified without rebuilding the image. Therefore,
+all validation commands were run using:
+\begin{lstlisting}[style=terminal]
+apptainer exec ./fiTQun_WCSim.sif bash fiTQun_WCSim_env.sh <command>
+\end{lstlisting}
+rather than the internal script.
+
+\subsubsection{Version report}
+
+The build also writes a version report:
+\begin{lstlisting}[style=terminal]
+/usr/local/hk/versions_fitqun_wcsim.txt
+\end{lstlisting}
+The file records:
+\begin{itemize}
+    \item the build date;
+    \item the ROOT version;
+    \item the Geant4 version;
+    \item the WCSim commit;
+    \item the fiTQun installation path;
+    \item the original WCSimRoot installation path;
+    \item the full WCSim installation path.
+\end{itemize}
+
+The WCSim commit is stored with:
+\begin{lstlisting}[style=defstyle]
+git rev-parse HEAD
+\end{lstlisting}
+This is important for reproducibility, because the WCSim build uses the current
+state of the GitHub repository at build time.
+
+
+
+
+\subsection{Reminder: compatibility note}
+
+At this stage, the image contains two WCSimRoot installations:
+\begin{itemize}
+    \item \texttt{WCSimRoot 1.12.29}, used by the pre-existing fiTQun build;
+    \item \texttt{WCSimRoot 1.12.30}, produced by the full WCSim installation.
+\end{itemize}
+
+This was verified with:
+\begin{lstlisting}[style=terminal]
+ldd $(which runfiTQun) | grep -i WCSimRoot
+ldd $(which WCSim)     | grep -i WCSimRoot
+\end{lstlisting}
+which showed that \texttt{runfiTQun} and \texttt{WCSim} are linked against
+different WCSimRoot versions.
+
+\subsection{Current status}
+
+The current test image successfully provides:
+\begin{itemize}
+    \item a working WCSim executable;
+    \item a working Geant4 installation;
+    \item the required Geant4 data files;
+    \item the original working fiTQun installation;
+    \item WCSim macros, including Hyper-K related macros such as
+    \texttt{WCSim\_1part\_HK.mac} and
+    \texttt{tuning\_parameters\_hkfd.mac}.
+\end{itemize}
+The next validation step is to generate a small WCSim ROOT file, for example with one event, and then check whether the existing \texttt{runfiTQun} executable can read and reconstruct it. If this works, the image can already be used as a practical test environment. If it fails because of WCSimRoot schema or library compatibility issues, the next step will be to rebuild fiTQun against the
+WCSimRoot version installed together with WCSim.
+\section{Shell script \texttt{fiTQun\_WCSim\_env.sh}: useful path}
+\subsection{Runtime environment script}
+
+An environment script was needed in order to make all executables,
+libraries and data files visible at runtime. The script used in this work, as shown in Appendix \ref{Appendix_A}, is:
+\begin{lstlisting}[style=terminal]
+fiTQun_WCSim_env.sh
+\end{lstlisting}
+This is necessary because the different packages are installed
+in separate directories under:
+\begin{lstlisting}[style=terminal]
+/usr/local/hk
+\end{lstlisting}
+and the shell does not automatically know where to find their executables, libraries, CMake files, headers and Geant4 datasets.
+
+\subsubsection{Main package locations}
+
+The first part of the script defines the main installation directories:
+\begin{lstlisting}[style=defstyle]
+export HK_ROOT=/usr/local/hk
+
+export FITQUN_SRC=${HK_ROOT}/fiTQun
+export FITQUN_INSTALL=${HK_ROOT}/fiTQun/install-Linux_x86_64-gcc_8-python_3.12.1
+
+export ROOT_INSTALL=${HK_ROOT}/ROOT/install-Linux_x86_64-gcc_8-python_3.12.1
+export WCSIMROOT_INSTALL=${HK_ROOT}/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1
+export TOOLFRAMEWORKCORE_INSTALL=${HK_ROOT}/ToolFrameworkCore/install-Linux_x86_64-gcc_8-python_3.12.1
+
+export WCSIMFULL_INSTALL=${HK_ROOT}/WCSimFull/install
+export GEANT4_INSTALL=${HK_ROOT}/Geant4/install-10.3.3
+\end{lstlisting}
+These variables are shortcuts to the relevant packages installed inside the image. In particular:
+\begin{itemize}
+    \item \texttt{FITQUN\_INSTALL} points to the installed fiTQun executable and
+    libraries;
+    \item \texttt{ROOT\_INSTALL} points to the ROOT installation used by both
+    WCSim and fiTQun;
+    \item \texttt{WCSIMROOT\_INSTALL} points to the WCSimRoot installation used
+    by the original fiTQun build;
+    \item \texttt{TOOLFRAMEWORKCORE\_INSTALL} points to the ToolFrameworkCore
+    libraries required by fiTQun;
+    \item \texttt{WCSIMFULL\_INSTALL} points to the full WCSim installation,
+    including the \texttt{WCSim} executable;
+    \item \texttt{GEANT4\_INSTALL} points to the Geant4 installation used by
+    WCSim.
+\end{itemize}
+This separation is useful because fiTQun and WCSim do not have exactly the same runtime requirements. fiTQun mainly needs ROOT, WCSimRoot and ToolFrameworkCore, whereas WCSim also needs Geant4 and the Geant4 data files.
+
+\subsubsection{fiTQun configuration path}
+
+The script then defines:
+\begin{lstlisting}[style=defstyle]
+export FITQUN_ROOT=${FITQUN_SRC}
+\end{lstlisting}
+This variable is used by fiTQun to locate its configuration and parameter files.
+Without it, \texttt{runfiTQun} may not be able to find the files that define the reconstruction settings, constants and tuning inputs. Therefore, this variable is needed even if the \texttt{runfiTQun} executable itself is already visible in \texttt{PATH}.
+
+\subsubsection{Geant4 data files}
+\begin{lstlisting}[style=defstyle]
+export G4DATA=${GEANT4_INSTALL}/share/Geant4-10.3.3/data
+
+export G4LEDATA=${G4DATA}/G4EMLOW6.50
+export G4LEVELGAMMADATA=${G4DATA}/PhotonEvaporation4.3.2
+export G4NEUTRONHPDATA=${G4DATA}/G4NDL4.5
+export G4RADIOACTIVEDATA=${G4DATA}/RadioactiveDecay5.1.1
+export G4REALSURFACEDATA=${G4DATA}/RealSurface1.0
+export G4SAIDXSDATA=${G4DATA}/G4SAIDDATA1.1
+export G4ENSDFSTATEDATA=${G4DATA}/G4ENSDFSTATE2.1
+\end{lstlisting}
+These variables tell Geant4 where to find the external datasets used by its physics models. They are not optional for a full WCSim run. For example:
+\begin{itemize}
+    \item \texttt{G4LEDATA} is used by electromagnetic low-energy processes;
+    \item \texttt{G4NEUTRONHPDATA} is used by high-precision neutron models;
+    \item \texttt{G4LEVELGAMMADATA} is used for photon evaporation data;
+    \item \texttt{G4RADIOACTIVEDATA} is used for radioactive decay data;
+    \item \texttt{G4REALSURFACEDATA} is used for optical surface properties;
+    \item \texttt{G4SAIDXSDATA} is used for some hadronic cross-section data;
+    \item \texttt{G4ENSDFSTATEDATA} is used by the Geant4 nuclide table.
+\end{itemize}
+This part of the script was required because WCSim initially failed with the error:
+\begin{lstlisting}[style=terminal]
+G4ENSDFSTATEDATA environment variable must be set
+\end{lstlisting}
+After exporting the Geant4 data variables, the command:
+\begin{lstlisting}[style=terminal]
+apptainer exec ./fiTQun_WCSim.sif bash fiTQun_WCSim_env.sh WCSim --help
+\end{lstlisting}
+successfully started WCSim and printed the Geant4 banner and the WCSim usage message. This confirmed that Geant4 could now locate the required data files.
+
+\subsubsection{Executable search path}
+
+The script modifies the executable search path with:
+\begin{lstlisting}[style=defstyle]
+export PATH=${WCSIMFULL_INSTALL}/bin:${GEANT4_INSTALL}/bin:${FITQUN_INSTALL}/bin:${ROOT_INSTALL}/bin:${PATH:-}
+\end{lstlisting}
+The shell uses \texttt{PATH} to find executables when a command is typed. In this
+case, the following commands must be found:
+\begin{itemize}
+    \item \texttt{WCSim}, located in \texttt{WCSIMFULL\_INSTALL/bin};
+    \item \texttt{geant4-config}, located in \texttt{GEANT4\_INSTALL/bin};
+    \item \texttt{runfiTQun}, located in \texttt{FITQUN\_INSTALL/bin};
+    \item \texttt{root} and \texttt{root-config}, located in
+    \texttt{ROOT\_INSTALL/bin}.
+\end{itemize}
+Without this line, these programs may still exist inside the image, but commands
+such as:
+\begin{lstlisting}[style=terminal]
+which WCSim
+which geant4-config
+which runfiTQun
+which root
+\end{lstlisting}
+would fail unless their full absolute paths were used.
+
+\subsubsection{Dynamic library search path}
+
+The next important variable is \texttt{LD\_LIBRARY\_PATH}:
+\begin{lstlisting}[style=defstyle]
+export LD_LIBRARY_PATH=${WCSIMFULL_INSTALL}/lib:${WCSIMFULL_INSTALL}/lib64:${GEANT4_INSTALL}/lib64:${GEANT4_INSTALL}/lib:${FITQUN_INSTALL}/lib:${WCSIMROOT_INSTALL}/lib:${TOOLFRAMEWORKCORE_INSTALL}/lib:${ROOT_INSTALL}/lib:/.singularity.d/libs:${LD_LIBRARY_PATH:-}
+\end{lstlisting}
+This variable tells the dynamic linker where to look for shared libraries at runtime. This is different from \texttt{PATH}: \texttt{PATH} finds executables, whereas \texttt{LD\_LIBRARY\_PATH} finds the libraries needed by those executables after they have been launched.\\
+For example:
+\begin{itemize}
+    \item \texttt{runfiTQun} needs libraries from fiTQun, WCSimRoot,
+    ToolFrameworkCore and ROOT;
+    \item \texttt{WCSim} needs libraries from WCSim, Geant4 and ROOT;
+    \item ROOT itself needs its own shared libraries and dictionaries.
+\end{itemize}
+If this variable is incomplete, the executable may be found by \texttt{which},
+but fail at runtime with an error such as:
+\begin{lstlisting}[style=terminal]
+error while loading shared libraries: libXYZ.so: cannot open shared object file
+\end{lstlisting}
+
+\subsubsection{ROOT include path}
+
+The script also defines:
+\begin{lstlisting}[style=defstyle]
+export ROOT_INCLUDE_PATH=${WCSIMROOT_INSTALL}/include/WCSimRoot:${WCSIMROOT_INSTALL}/include:${ROOT_INCLUDE_PATH:-}
+\end{lstlisting}
+This variable is used by ROOT when loading headers, dictionaries and interpreted code. It is especially useful when ROOT needs to understand classes from WCSimRoot, such as:
+\begin{lstlisting}[style=terminal]
+WCSimRootEvent
+WCSimRootGeom
+WCSimRootOptions
+\end{lstlisting}
+These classes describe the objects stored in WCSim ROOT files. Therefore,
+\texttt{ROOT\_INCLUDE\_PATH} helps ROOT locate the corresponding header files when reading or inspecting WCSim output.
+
+\subsubsection{Execution of the requested command}
+
+The script ends with:
+\begin{lstlisting}[style=defstyle]
+exec "$@"
+\end{lstlisting}
+This means that the script first prepares the environment and then executes the
+command passed by the user. For example:
+\begin{lstlisting}[style=terminal]
+apptainer exec ./fiTQun_WCSim.sif bash fiTQun_WCSim_env.sh WCSim --help
+\end{lstlisting}
+first sets all the variables described above and then runs:
+\begin{lstlisting}[style=terminal]
+WCSim --help
+\end{lstlisting}
+This structure makes the script convenient for testing different commands without having to manually source the environment every time.
+
+\appendix
+\section{Shell script \texttt{fiTQun\_WCSim\_env.sh}}
+\label{Appendix_A}
+\lstinputlisting[
+    style=bashstyle,
+    caption={Shell script for fiTQun+WCSim image path environment}
+]{fiTQun_WCSim_env.sh}
+\section{Docker file to build fiTQun+WCSim image}
+\label{Appendix_B}
+\lstinputlisting[
+    style=bashstyle,
+    caption={Docker file}
+]{fiTQun_WCSim.def}
+
+
+
+
+
+
+
+
+\end{document}
