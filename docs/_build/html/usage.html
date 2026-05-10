@@ -126,61 +126,6 @@
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">apptainer<span class="w"> </span>shell<span class="w"> </span>fiTQun_WCSim.sif
 </span></code></pre></div>
 </div>
-<p>or:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">singularity<span class="w"> </span>shell<span class="w"> </span>fiTQun_WCSim.sif
-</span></code></pre></div>
-</div>
-<p>Which command works depends on the software installed on the server.</p>
-</section>
-<section id="local-paths">
-<h2>Local paths<a class="headerlink" href="#local-paths" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#local-paths'"><span>#</span></a></h2>
-<p>Every user may have a different local working directory. For this reason, the documentation avoids assuming a fixed local path such as:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">/home/alberto/...
-</span></code></pre></div>
-</div>
-<p>Instead, users should adapt commands to their own working area.</p>
-</section>
-<section id="remote-paths">
-<h2>Remote paths<a class="headerlink" href="#remote-paths" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#remote-paths'"><span>#</span></a></h2>
-<p>The common remote path is:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">/home/cc/HyperKamiokande/
-</span></code></pre></div>
-</div>
-<p>This path is the relevant stable reference for the container images.</p>
-</section>
-<section id="updating-the-documentation">
-<h2>Updating the documentation<a class="headerlink" href="#updating-the-documentation" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#updating-the-documentation'"><span>#</span></a></h2>
-<p>When adding a new software image or changing an existing one:</p>
-<ol class="arabic simple">
-<li><p>update <code class="docutils literal notranslate"><span class="pre">containers/images.yml</span></code>;</p></li>
-<li><p>update <code class="docutils literal notranslate"><span class="pre">docs/containers.md</span></code> if the user-facing explanation changes;</p></li>
-<li><p>update <code class="docutils literal notranslate"><span class="pre">README.md</span></code> only if the general structure changes.</p></li>
-</ol>
-<p>Avoid putting long machine-specific instructions directly in <code class="docutils literal notranslate"><span class="pre">README.md</span></code>. The README should remain a concise entry point.</p>
-</section>
-<section id="building-the-documentation-locally">
-<h2>Building the documentation locally<a class="headerlink" href="#building-the-documentation-locally" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#building-the-documentation-locally'"><span>#</span></a></h2>
-<p>Install the documentation dependencies:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>docs/requirements.txt
-</span></code></pre></div>
-</div>
-<p>Build the HTML documentation:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">sphinx-build<span class="w"> </span>-b<span class="w"> </span>html<span class="w"> </span>docs<span class="w"> </span>docs/_build/html
-</span></code></pre></div>
-</div>
-<p>Open:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">docs/_build/html/index.html
-</span></code></pre></div>
-</div>
-</section>
-<section id="deploying-online-with-github-pages">
-<h2>Deploying online with GitHub Pages<a class="headerlink" href="#deploying-online-with-github-pages" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#deploying-online-with-github-pages'"><span>#</span></a></h2>
-<p>The workflow in <code class="docutils literal notranslate"><span class="pre">.github/workflows/docs.yml</span></code> builds and deploys the Sphinx documentation to GitHub Pages.</p>
-<p>In GitHub, enable:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">Settings → Pages → Build and deployment → Source: GitHub Actions
-</span></code></pre></div>
-</div>
-<p>Then push to <code class="docutils literal notranslate"><span class="pre">main</span></code>.</p>
 </section>
 </section>
 </div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
@@ -188,11 +133,6 @@
 <ul>
 <li><a :data-current="activeSection === '#reading-order'" class="reference internal" href="#reading-order">Reading order</a></li>
 <li><a :data-current="activeSection === '#typical-workflow'" class="reference internal" href="#typical-workflow">Typical workflow</a></li>
-<li><a :data-current="activeSection === '#local-paths'" class="reference internal" href="#local-paths">Local paths</a></li>
-<li><a :data-current="activeSection === '#remote-paths'" class="reference internal" href="#remote-paths">Remote paths</a></li>
-<li><a :data-current="activeSection === '#updating-the-documentation'" class="reference internal" href="#updating-the-documentation">Updating the documentation</a></li>
-<li><a :data-current="activeSection === '#building-the-documentation-locally'" class="reference internal" href="#building-the-documentation-locally">Building the documentation locally</a></li>
-<li><a :data-current="activeSection === '#deploying-online-with-github-pages'" class="reference internal" href="#deploying-online-with-github-pages">Deploying online with GitHub Pages</a></li>
 </ul>
 </div>
 </aside>

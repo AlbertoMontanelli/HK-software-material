@@ -98,9 +98,6 @@
 <div id="content" role="main">
 <section id="repository-structure">
 <h1>Repository structure<a class="headerlink" href="#repository-structure" title="Link to this heading"><span>#</span></a></h1>
-<p>The repository separates lightweight documentation from large external artifacts.</p>
-<section id="recommended-structure">
-<h2>Recommended structure<a class="headerlink" href="#recommended-structure" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#recommended-structure'"><span>#</span></a></h2>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">HK-software-material/
 </span><span id="line-2">├── README.md
 </span><span id="line-3">├── LICENSE
@@ -126,49 +123,7 @@
 </span></code></pre></div>
 </div>
 </section>
-<section id="what-belongs-in-git">
-<h2>What belongs in Git<a class="headerlink" href="#what-belongs-in-git" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#what-belongs-in-git'"><span>#</span></a></h2>
-<p>Good candidates for Git:</p>
-<ul class="simple">
-<li><p>Markdown documentation;</p></li>
-<li><p>LaTeX source files;</p></li>
-<li><p>small setup scripts;</p></li>
-<li><p>container definition files such as <code class="docutils literal notranslate"><span class="pre">.def</span></code>;</p></li>
-<li><p>small environment setup files;</p></li>
-<li><p>YAML metadata files;</p></li>
-<li><p>GitHub workflow files.</p></li>
-</ul>
-</section>
-<section id="what-does-not-belong-in-git">
-<h2>What does not belong in Git<a class="headerlink" href="#what-does-not-belong-in-git" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#what-does-not-belong-in-git'"><span>#</span></a></h2>
-<p>Avoid committing:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">.sif</span></code> container images;</p></li>
-<li><p>large ROOT files;</p></li>
-<li><p>generated simulation samples;</p></li>
-<li><p>temporary output;</p></li>
-<li><p>logs;</p></li>
-<li><p>personal credentials;</p></li>
-<li><p>private keys;</p></li>
-<li><p>personal machine-specific configuration.</p></li>
-</ul>
-</section>
-<section id="why-this-structure-is-useful">
-<h2>Why this structure is useful<a class="headerlink" href="#why-this-structure-is-useful" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#why-this-structure-is-useful'"><span>#</span></a></h2>
-<p>The repository remains easy to clone and read, while still documenting the actual software environment used on the INFN machines.</p>
-<p>This is especially useful when the environment is not fully reproducible from GitHub alone, because some resources are stored on restricted servers.</p>
-</section>
-</section>
-</div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
-<div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
-<ul>
-<li><a :data-current="activeSection === '#recommended-structure'" class="reference internal" href="#recommended-structure">Recommended structure</a></li>
-<li><a :data-current="activeSection === '#what-belongs-in-git'" class="reference internal" href="#what-belongs-in-git">What belongs in Git</a></li>
-<li><a :data-current="activeSection === '#what-does-not-belong-in-git'" class="reference internal" href="#what-does-not-belong-in-git">What does not belong in Git</a></li>
-<li><a :data-current="activeSection === '#why-this-structure-is-useful'" class="reference internal" href="#why-this-structure-is-useful">Why this structure is useful</a></li>
-</ul>
-</div>
-</aside>
+</div></div>
 </main>
 </div>
 </div><footer class="py-6 border-t border-border md:py-0">

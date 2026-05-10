@@ -99,7 +99,7 @@
 <div id="content" role="main">
 <section id="container-images">
 <h1>Container images<a class="headerlink" href="#container-images" title="Link to this heading"><span>#</span></a></h1>
-<p>The HK software environment may rely on Singularity/Apptainer images. These images are large binary files and should not be stored in this Git repository.</p>
+<p>The HK software environment may rely on Apptainer images. These images are large binary files and should not be stored in this Git repository.</p>
 <p>Instead, this repository stores references to the remote images in:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">containers/images.yml
 </span></code></pre></div>
@@ -130,47 +130,9 @@
 </tbody>
 </table>
 </section>
-<section id="why-images-are-not-tracked-by-git">
-<h2>Why images are not tracked by Git<a class="headerlink" href="#why-images-are-not-tracked-by-git" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#why-images-are-not-tracked-by-git'"><span>#</span></a></h2>
-<p>Git is not a good place for large binary artifacts because:</p>
-<ul class="simple">
-<li><p>every clone becomes heavy;</p></li>
-<li><p>binary diffs are inefficient;</p></li>
-<li><p>GitHub has file-size limits;</p></li>
-<li><p>the images are tied to a specific computing environment;</p></li>
-<li><p>access may be restricted to INFN users.</p></li>
-</ul>
-<p>The repository should document the existence, path, and purpose of the images, while the images themselves remain on the INFN machine.</p>
-</section>
-<section id="using-an-image-on-marduk">
-<h2>Using an image on marduk<a class="headerlink" href="#using-an-image-on-marduk" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#using-an-image-on-marduk'"><span>#</span></a></h2>
-<p>After connecting to <code class="docutils literal notranslate"><span class="pre">marduk</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="nb">cd</span><span class="w"> </span>/home/cc/HyperKamiokande
-</span><span id="line-2">apptainer<span class="w"> </span>shell<span class="w"> </span>fiTQun_WCSim.sif
-</span></code></pre></div>
-</div>
-<p>or, depending on the local installation:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">singularity<span class="w"> </span>shell<span class="w"> </span>fiTQun_WCSim.sif
-</span></code></pre></div>
-</div>
-<p>Then inspect or source the associated environment file if needed:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">ls<span class="w"> </span>-lh
-</span><span id="line-2">cat<span class="w"> </span>fiTQun_WCSim_env.sh
-</span><span id="line-3"><span class="nb">source</span><span class="w"> </span>fiTQun_WCSim_env.sh
-</span></code></pre></div>
-</div>
-</section>
 <section id="metadata-file">
 <h2>Metadata file<a class="headerlink" href="#metadata-file" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#metadata-file'"><span>#</span></a></h2>
-<p>The file <code class="docutils literal notranslate"><span class="pre">containers/images.yml</span></code> is meant to be a compact, structured reference. It can be read by humans and, if needed later, parsed by scripts.</p>
-<p>Example entry:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fiTQun_WCSim</span>
-</span><span id="line-2"><span class="w">  </span><span class="nt">filename</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fiTQun_WCSim.sif</span>
-</span><span id="line-3"><span class="w">  </span><span class="nt">remote_user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cc</span>
-</span><span id="line-4"><span class="w">  </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">marduk</span>
-</span><span id="line-5"><span class="w">  </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/home/cc/HyperKamiokande/fiTQun_WCSim.sif</span>
-</span></code></pre></div>
-</div>
+<p>The file <code class="docutils literal notranslate"><span class="pre">containers/images.yml</span></code> is meant to be a compact, structured reference. It can be read and, if needed later, parsed by scripts.</p>
 <p>If an image is moved, renamed, rebuilt, or replaced, update <code class="docutils literal notranslate"><span class="pre">containers/images.yml</span></code> and this page.</p>
 </section>
 </section>
@@ -178,8 +140,6 @@
 <div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
 <ul>
 <li><a :data-current="activeSection === '#remote-location'" class="reference internal" href="#remote-location">Remote location</a></li>
-<li><a :data-current="activeSection === '#why-images-are-not-tracked-by-git'" class="reference internal" href="#why-images-are-not-tracked-by-git">Why images are not tracked by Git</a></li>
-<li><a :data-current="activeSection === '#using-an-image-on-marduk'" class="reference internal" href="#using-an-image-on-marduk">Using an image on marduk</a></li>
 <li><a :data-current="activeSection === '#metadata-file'" class="reference internal" href="#metadata-file">Metadata file</a></li>
 </ul>
 </div>

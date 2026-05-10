@@ -69,15 +69,3 @@ fiTQun_WCSim_env.sh
 fiTQun_git_repo/
 utils/
 ```
-
-## What should not be committed
-
-Do not commit personal access information, passwords, private keys, or local machine-specific paths.
-
-In particular, avoid committing commands with your personal username if the documentation is meant to be reusable by other people. Use placeholders such as:
-
-```text
-<INFN_USERNAME>
-```
-
-instead.
