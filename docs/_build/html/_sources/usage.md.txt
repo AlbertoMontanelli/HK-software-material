@@ -1,4 +1,4 @@
-# Usage guide and container images
+# Usage guide and container images building
 
 This page summarizes how to use the material in this repository and how the available Apptainer images are obtained.
 
