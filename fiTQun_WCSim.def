@@ -148,9 +148,9 @@ fi
 
 export PATH=$FITQUN_INSTALL/bin:$WCSIM_INSTALL_DIR/bin:$ROOT_INSTALL/bin:$PATH
 
-# Nota:
-# per fiTQun si tiene il vecchio WCSimRoot già funzionante.
-# per WCSim usiamo anche le librerie della nuova installazione.
+# Note:
+# for fiTQun keep old working WCSimRoote.
+# for WCSim use libraries of the new installation too.
 export LD_LIBRARY_PATH=$FITQUN_INSTALL/lib:$OLD_WCSIMROOT_INSTALL/lib:$WCSIM_INSTALL_DIR/lib:$ROOT_INSTALL/lib:/.singularity.d/libs:$LD_LIBRARY_PATH
 
 export ROOT_INCLUDE_PATH=$OLD_WCSIMROOT_INSTALL/include/WCSimRoot:$OLD_WCSIMROOT_INSTALL/include:$WCSIM_INSTALL_DIR/include:$ROOT_INCLUDE_PATH

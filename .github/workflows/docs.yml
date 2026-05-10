@@ -40,7 +40,7 @@ jobs:
         uses: xu-cheng/latex-action@v3
         with:
           root_file: HK_Software_Guide.tex
-          compiler: pdflatex
+          compiler: latexmk
 
       - name: Copy PDF into Sphinx static directory
         run: |
