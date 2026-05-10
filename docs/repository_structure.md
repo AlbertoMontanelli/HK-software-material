@@ -8,6 +8,8 @@ HK-software-material/
 ├── HK_software_guide.pdf
 ├── fiTQun_WCSim.def
 ├── fiTQun_WCSim_env.sh
+├── PhD_thesis_jiang_subevent_improving.pdf
+├── PhD_thesis_tobayama_fiTQun.pdf
 ├── containers/
 │   └── images.yml
 ├── docs/
