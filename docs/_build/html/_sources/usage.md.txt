@@ -125,10 +125,8 @@ For a cleaner production setup, fiTQun should eventually be rebuilt against the 
 
 ## Complete guide
 
-For a more complete explanation of the HK software setup and workflow, refer to:
+This documentation summarizes the repository structure and the basic usage of the container images.
 
-```text
-HK_software_guide.pdf
-```
+For a more complete and detailed explanation, see the full PDF guide:
 
-This `usage.md` file is meant only as a compact operational summary.
+[HK Software Guide](_static/HK_Software_Guide.pdf)
