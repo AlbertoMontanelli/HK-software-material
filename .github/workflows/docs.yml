@@ -46,6 +46,8 @@ jobs:
         run: |
           mkdir -p docs/_static
           cp HK_Software_Guide.pdf docs/_static/HK_Software_Guide.pdf
+          cp PhD_thesis_jiang_subevent_improving.pdf docs/_static/PhD_thesis_jiang_subevent_improving.pdf
+          cp PhD_thesis_tobayama_fiTQun.pdf docs/_static/PhD_thesis_tobayama_fiTQun.pdf
 
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
