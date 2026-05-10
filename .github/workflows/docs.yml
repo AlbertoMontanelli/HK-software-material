@@ -41,7 +41,6 @@ jobs:
         with:
           root_file: HK_Software_Guide.tex
           compiler: pdflatex
-          latexmk_shell_escape: true
 
       - name: Copy PDF into Sphinx static directory
         run: |
