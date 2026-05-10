@@ -13,7 +13,7 @@ A suggested reading order is:
 3. `docs/containers.md` for the list and location of the available `.sif` images;
 4. `containers/images.yml` for a structured summary of the container metadata;
 5. `docs/usage.md`, this file, for practical usage and image-building notes;
-6. `HK_software_guide.pdf` for the complete software guide.
+6. [HK Software Guide](_static/HK_Software_Guide.pdf) for the complete software guide.
 
 ## Accessing the container directory
 

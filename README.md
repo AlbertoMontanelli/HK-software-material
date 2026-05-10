@@ -4,9 +4,6 @@ This repository collects notes, references, configuration snippets, and document
 
 For a short description and usage guide for the repository [**read here**.](https://albertomontanelli.github.io/HK-software-material/).
 
-The full PDF guide for HK software environment is available in the online documentation and in:
-
-```text
-docs/_static/HK_Software_Guide.pdf
+The full PDF guide for HK software environment is available in the online documentation and in [HK Software Guide](_static/HK_Software_Guide.pdf)
 
 
