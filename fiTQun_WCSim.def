@@ -7,7 +7,7 @@ From: ./fiTQun_latest.sif
     echo "=== Building test image: fiTQun + Geant4 + full WCSim ==="
 
     # ==============================================================
-    # 1. Path già presenti nell'immagine fiTQun
+    # 1. Path already present in fiTQun image
     # ==============================================================
 
     export FITQUN_SRC=/usr/local/hk/fiTQun
@@ -30,7 +30,7 @@ From: ./fiTQun_latest.sif
     root-config --version
 
     # ==============================================================
-    # 2. Installa strumenti di compilazione se mancano
+    # 2. Install compilation tools if necessary
     # ==============================================================
 
     if command -v apt-get >/dev/null 2>&1; then
@@ -50,7 +50,7 @@ From: ./fiTQun_latest.sif
     fi
 
     # ==============================================================
-    # 3. Installa Geant4
+    # 3. Install Geant4
     # ==============================================================
     #
     # Nota: WCSim README indica Geant4 10.3.3 come versione supportata
@@ -89,7 +89,7 @@ From: ./fiTQun_latest.sif
     geant4-config --version
 
     # ==============================================================
-    # 4. Installa WCSim completo
+    # 4. Install complete WCSim
     # ==============================================================
 
     export WCSIM_HOME=/usr/local/hk/WCSimFull
@@ -114,7 +114,7 @@ From: ./fiTQun_latest.sif
     make install
 
     # ==============================================================
-    # 5. Script ambiente finale
+    # 5. Script final environment (do not use)
     # ==============================================================
 
     cat > /usr/local/hk/fitqun_wcsim_env.sh <<'EOF'
