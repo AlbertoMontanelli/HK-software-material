@@ -1,0 +1,33 @@
+# References to remote Singularity/Apptainer images used for HK software studies.
+#
+# These files are NOT tracked by Git because they are large binary artifacts.
+# Access depends on the user's INFN account and network configuration.
+
+containers:
+  - name: fiTQun_latest
+    filename: fiTQun_latest.sif
+    remote_user: cc
+    host: marduk
+    path: /home/cc/HyperKamiokande/fiTQun_latest.sif
+    access:
+      direct: "Available from INFN network or VPN, if marduk is reachable directly."
+      via_jump: "ssh -J <INFN_USERNAME>@galilinux.pi.infn.it cc@marduk"
+    purpose: "fiTQun software environment."
+    tracked_in_git: false
+
+  - name: fiTQun_WCSim
+    filename: fiTQun_WCSim.sif
+    remote_user: cc
+    host: marduk
+    path: /home/cc/HyperKamiokande/fiTQun_WCSim.sif
+    access:
+      direct: "Available from INFN network or VPN, if marduk is reachable directly."
+      via_jump: "ssh -J <INFN_USERNAME>@galilinux.pi.infn.it cc@marduk"
+    purpose: "fiTQun + WCSim software environment."
+    tracked_in_git: false
+
+related_files:
+  - filename: fiTQun_WCSim.def
+    description: "Definition file used to document or rebuild the fiTQun/WCSim container, if available."
+  - filename: fiTQun_WCSim_env.sh
+    description: "Environment setup file associated with the fiTQun/WCSim container, if available."
