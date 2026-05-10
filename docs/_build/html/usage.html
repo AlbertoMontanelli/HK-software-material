@@ -7,9 +7,9 @@
 <meta content="white" media="(prefers-color-scheme: light)" name="theme-color"/>
 <meta content="black" media="(prefers-color-scheme: dark)" name="theme-color"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>Usage guide | HK Software Material</title>
-<meta content="Usage guide | HK Software Material" property="og:title"/>
-<meta content="Usage guide | HK Software Material" name="twitter:title"/>
+<title>Usage guide and container images | HK Software Material</title>
+<meta content="Usage guide and container images | HK Software Material" property="og:title"/>
+<meta content="Usage guide and container images | HK Software Material" name="twitter:title"/>
 <link href="_static/pygments.css?v=b86133f3" rel="stylesheet" type="text/css"/>
 <link href="_static/theme.css?v=42baaae4" rel="stylesheet" type="text/css"/>
 <link href="_static/copybutton.css?v=76b2166b" rel="stylesheet" type="text/css"/>
@@ -73,7 +73,7 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="access.html">Access to INFN machines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="containers.html">Container images</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Usage guide</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Usage guide and container images</a></li>
 <li class="toctree-l1"><a class="reference internal" href="repository_structure.html">Repository structure</a></li>
 </ul>
 </nav>
@@ -94,45 +94,130 @@
 <path d="M240 856h120V616h240v240h120V496L480 316 240 496v360Zm-80 80V456l320-240 320 240v480H520V696h-80v240H160Zm320-350Z"></path>
 </svg>
 </a>
-<div class="mr-1">/</div><span aria-current="page" class="font-medium text-foreground overflow-hidden text-ellipsis whitespace-nowrap">Usage guide</span>
+<div class="mr-1">/</div><span aria-current="page" class="font-medium text-foreground overflow-hidden text-ellipsis whitespace-nowrap">Usage guide and container images</span>
 </nav>
 <div id="content" role="main">
-<section id="usage-guide">
-<h1>Usage guide<a class="headerlink" href="#usage-guide" title="Link to this heading"><span>#</span></a></h1>
-<p>This page gives a practical reading order for the repository and explains how to use the documented material.</p>
+<section id="usage-guide-and-container-images">
+<h1>Usage guide and container images<a class="headerlink" href="#usage-guide-and-container-images" title="Link to this heading"><span>#</span></a></h1>
+<p>This page summarizes how to use the material in this repository and how the available Apptainer images are obtained.</p>
+<p>The repository does <strong>not</strong> store large <code class="docutils literal notranslate"><span class="pre">.sif</span></code> images. It only documents where they are located, how they can be accessed, and how they can be rebuilt if needed.</p>
 <section id="reading-order">
 <h2>Reading order<a class="headerlink" href="#reading-order" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#reading-order'"><span>#</span></a></h2>
-<p>Start from:</p>
+<p>A suggested reading order is:</p>
 <ol class="arabic simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">README.md</span></code> for the general idea of the repository;</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">docs/access.md</span></code> to understand how to reach the INFN machines;</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">docs/containers.md</span></code> to understand where the <code class="docutils literal notranslate"><span class="pre">.sif</span></code> images are stored;</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">containers/images.yml</span></code> for the structured list of available images;</p></li>
-<li><p>existing setup files such as <code class="docutils literal notranslate"><span class="pre">fiTQun_WCSim_env.sh</span></code>, if present in the repository.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">README.md</span></code> for the general purpose of the repository;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/access.md</span></code> for instructions on how to reach the INFN machines;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/containers.md</span></code> for the list and location of the available <code class="docutils literal notranslate"><span class="pre">.sif</span></code> images;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">containers/images.yml</span></code> for a structured summary of the container metadata;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/usage.md</span></code>, this file, for practical usage and image-building notes;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">HK_software_guide.pdf</span></code> for the complete software guide.</p></li>
 </ol>
 </section>
-<section id="typical-workflow">
-<h2>Typical workflow<a class="headerlink" href="#typical-workflow" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#typical-workflow'"><span>#</span></a></h2>
-<p>From a local machine:</p>
+<section id="accessing-the-container-directory">
+<h2>Accessing the container directory<a class="headerlink" href="#accessing-the-container-directory" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#accessing-the-container-directory'"><span>#</span></a></h2>
+<p>The container images are stored on <code class="docutils literal notranslate"><span class="pre">marduk</span></code>:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">/home/cc/HyperKamiokande/
+</span></code></pre></div>
+</div>
+<p>If you are outside the INFN network, access usually requires the <code class="docutils literal notranslate"><span class="pre">galilinux</span></code> jump server:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">ssh<span class="w"> </span>-J<span class="w"> </span>&lt;INFN_USERNAME&gt;@galilinux.pi.infn.it<span class="w"> </span>cc@marduk
 </span></code></pre></div>
 </div>
-<p>Then on <code class="docutils literal notranslate"><span class="pre">marduk</span></code>:</p>
+<p>where <code class="docutils literal notranslate"><span class="pre">&lt;INFN_USERNAME&gt;</span></code> must be replaced with your personal INFN username.</p>
+<p>If you are already connected through the INFN network or VPN, direct access may work:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">ssh<span class="w"> </span>cc@marduk
+</span></code></pre></div>
+</div>
+<p>Once logged into <code class="docutils literal notranslate"><span class="pre">marduk</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="nb">cd</span><span class="w"> </span>/home/cc/HyperKamiokande
 </span><span id="line-2">ls<span class="w"> </span>-lh
 </span></code></pre></div>
 </div>
-<p>To open a container:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">apptainer<span class="w"> </span>shell<span class="w"> </span>fiTQun_WCSim.sif
+<p>Expected relevant files include:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">fiTQun_latest.sif
+</span><span id="line-2">fiTQun_WCSim.sif
+</span><span id="line-3">fiTQun_WCSim.def
+</span><span id="line-4">fiTQun_WCSim_env.sh
 </span></code></pre></div>
 </div>
+</section>
+<section id="building-the-images">
+<h2>Building the images<a class="headerlink" href="#building-the-images" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#building-the-images'"><span>#</span></a></h2>
+<section id="pulling-the-fitqun-image">
+<h3>Pulling the fiTQun image<a class="headerlink" href="#pulling-the-fitqun-image" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#pulling-the-fitqun-image'"><span>#</span></a></h3>
+<p>The base fiTQun image can be pulled from the Hyper-K GitLab container registry. Access requires valid Hyper-K GitLab credentials and a personal access token with read access to the container registry. First, create an HTTP token with registry read permission from your Hyper-K GitLab profile.</p>
+<p>Login to the registry with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">apptainer<span class="w"> </span>registry<span class="w"> </span>login<span class="w"> </span>--username<span class="w"> </span>&lt;USERNAME&gt;<span class="w"> </span>docker://registry.git.hyperk.org
+</span></code></pre></div>
+</div>
+<p>Then pull the latest fiTQun image:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">apptainer<span class="w"> </span>pull<span class="w"> </span>fiTQun_latest.sif<span class="w"> </span>docker://registry.git.hyperk.org/hyperk/recon/fitqun:latest
+</span></code></pre></div>
+</div>
+<p>This image contains fiTQun and its dependencies; the full WCSim setup needed for all workflows is not present.</p>
+</section>
+<section id="building-the-fitqun-wcsim-image">
+<h3>Building the fiTQun + WCSim image<a class="headerlink" href="#building-the-fitqun-wcsim-image" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#building-the-fitqun-wcsim-image'"><span>#</span></a></h3>
+<p>The combined image is built from the definition file:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">fiTQun_WCSim.def
+</span></code></pre></div>
+</div>
+<p>Build it with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">apptainer<span class="w"> </span>build<span class="w"> </span>fiTQun_WCSim.sif<span class="w"> </span>fiTQun_WCSim.def
+</span></code></pre></div>
+</div>
+<p>This produces:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">fiTQun_WCSim.sif
+</span></code></pre></div>
+</div>
+<p>which is intended to provide a single environment containing both fiTQun and WCSim-related components.</p>
+</section>
+</section>
+<section id="environment-setup">
+<h2>Environment setup<a class="headerlink" href="#environment-setup" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#environment-setup'"><span>#</span></a></h2>
+<p>The repository contains an environment helper script:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">fiTQun_WCSim_env.sh
+</span></code></pre></div>
+</div>
+<p>Before running software inside or together with the container, inspect and source it if needed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="nb">source</span><span class="w"> </span>fiTQun_WCSim_env.sh
+</span></code></pre></div>
+</div>
+<p>The purpose of this script is to define useful paths and environment variables for the local setup.</p>
+</section>
+<section id="compatibility-note-wcsimroot-versions">
+<h2>Compatibility note: WCSimRoot versions<a class="headerlink" href="#compatibility-note-wcsimroot-versions" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#compatibility-note-wcsimroot-versions'"><span>#</span></a></h2>
+<p>The combined <code class="docutils literal notranslate"><span class="pre">fiTQun_WCSim.sif</span></code> image currently contains two WCSimRoot installations:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">WCSimRoot</span> <span class="pre">1.12.29</span></code>, inherited from the original <code class="docutils literal notranslate"><span class="pre">fiTQun_latest.sif</span></code> image and used by the pre-existing fiTQun build;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">WCSimRoot</span> <span class="pre">1.12.30</span></code>, produced when the full WCSim installation is built inside the combined image.</p></li>
+</ul>
+<p>This means that <code class="docutils literal notranslate"><span class="pre">runfiTQun</span></code> and <code class="docutils literal notranslate"><span class="pre">WCSim</span></code> may be linked against different WCSimRoot versions.
+This may cause compatibility problems: if a WCSim ROOT file produced by the full WCSim installation cannot be read correctly by runfiTQun the most likely issue is this mismatch between these two WCSimRoot versions.</p>
+<p>For a cleaner production setup, fiTQun should eventually be rebuilt against the same WCSimRoot installation used by the full WCSim build.</p>
+</section>
+<section id="complete-guide">
+<h2>Complete guide<a class="headerlink" href="#complete-guide" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#complete-guide'"><span>#</span></a></h2>
+<p>For a more complete explanation of the HK software setup and workflow, refer to:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">HK_software_guide.pdf
+</span></code></pre></div>
+</div>
+<p>This <code class="docutils literal notranslate"><span class="pre">usage.md</span></code> file is meant only as a compact operational summary.</p>
 </section>
 </section>
 </div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
 <div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
 <ul>
 <li><a :data-current="activeSection === '#reading-order'" class="reference internal" href="#reading-order">Reading order</a></li>
-<li><a :data-current="activeSection === '#typical-workflow'" class="reference internal" href="#typical-workflow">Typical workflow</a></li>
+<li><a :data-current="activeSection === '#accessing-the-container-directory'" class="reference internal" href="#accessing-the-container-directory">Accessing the container directory</a></li>
+<li><a :data-current="activeSection === '#building-the-images'" class="reference internal" href="#building-the-images">Building the images</a><ul>
+<li><a :data-current="activeSection === '#pulling-the-fitqun-image'" class="reference internal" href="#pulling-the-fitqun-image">Pulling the fiTQun image</a></li>
+<li><a :data-current="activeSection === '#building-the-fitqun-wcsim-image'" class="reference internal" href="#building-the-fitqun-wcsim-image">Building the fiTQun + WCSim image</a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#environment-setup'" class="reference internal" href="#environment-setup">Environment setup</a></li>
+<li><a :data-current="activeSection === '#compatibility-note-wcsimroot-versions'" class="reference internal" href="#compatibility-note-wcsimroot-versions">Compatibility note: WCSimRoot versions</a></li>
+<li><a :data-current="activeSection === '#complete-guide'" class="reference internal" href="#complete-guide">Complete guide</a></li>
 </ul>
 </div>
 </aside>
