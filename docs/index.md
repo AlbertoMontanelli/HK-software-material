@@ -11,7 +11,6 @@ The repository is intentionally lightweight: large artifacts such as Apptainer i
 access
 containers
 usage
-repository_structure
 ```
 
 ## Repository content

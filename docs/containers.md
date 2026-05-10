@@ -30,7 +30,7 @@ The file `containers/images.yml` is meant to be a compact, structured reference.
 
 If an image is moved, renamed, rebuilt, or replaced, update `containers/images.yml` and this page.
 
-# Container images building
+## Container images building
 
 This section summarizes how the available Apptainer images are obtained.
 
