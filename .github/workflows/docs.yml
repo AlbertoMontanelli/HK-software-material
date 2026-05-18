@@ -5,8 +5,8 @@ on:
     branches: [ main ]
     paths:
       - "HK_Software_Guide.tex"
-      - "fiTQun_WCSim_env.sh"
-      - "fiTQun_WCSim.def"
+      - "fiTQun.def"
+      - "WCSim.def"
       - "docs/**"
       - "containers/**"
       - "README.md"
@@ -33,8 +33,8 @@ jobs:
       - name: Check LaTeX input files
         run: |
           test -f HK_Software_Guide.tex
-          test -f fiTQun_WCSim_env.sh
-          test -f fiTQun_WCSim.def
+          test -f fiTQun.def
+          test -f WCSim.def
 
       - name: Compile LaTeX guide
         uses: xu-cheng/latex-action@v3
