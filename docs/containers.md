@@ -14,15 +14,15 @@ containers/images.yml
 The current remote location is:
 
 ```text
-cc@marduk:/home/cc/HyperKamiokande/
+cc@marduk:/home/cc/HyperKamiokande/containers/
 ```
 
 The currently referenced images are:
 
 | Image | Remote path | Purpose |
 |---|---|---|
-| `fiTQun_latest.sif` | `/home/cc/HyperKamiokande/fiTQun_latest.sif` | fiTQun environment |
-| `fiTQun_WCSim.sif` | `/home/cc/HyperKamiokande/fiTQun_WCSim.sif` | fiTQun + WCSim environment |
+| `fiTQun.sif` | `/home/cc/HyperKamiokande/containers/fiTQun.sif` | fiTQun environment |
+| `WCSim.sif` | `/home/cc/HyperKamiokande/containers/WCSim.sif` | WCSim environment |
 
 ## Metadata file
 
@@ -34,12 +34,12 @@ If an image is moved, renamed, rebuilt, or replaced, update `containers/images.y
 
 This section summarizes how the available Apptainer images are obtained.
 
-## Accessing the container directory
+### Accessing the container directory
 
 The container images are stored on `marduk`:
 
 ```text
-/home/cc/HyperKamiokande/
+/home/cc/HyperKamiokande/containers/
 ```
 
 If you are outside the INFN network, access usually requires the `galilinux` jump server:
@@ -59,85 +59,148 @@ ssh cc@marduk
 Once logged into `marduk`:
 
 ```bash
-cd /home/cc/HyperKamiokande
-ls -lh
+cd /home/cc/HyperKamiokande/containers
 ```
 
-Expected relevant files include:
+### Building fiTQun image
 
-```text
-fiTQun_latest.sif
-fiTQun_WCSim.sif
-fiTQun_WCSim.def
-fiTQun_WCSim_env.sh
+The fiTQun image is based on the official Hyper-K GitLab container registry image:
+
+```bash
+registry.git.hyperk.org/hyperk/recon/fitqun
 ```
 
-## Building the images
-
-### Pulling the fiTQun image
-
-The base fiTQun image can be pulled from the Hyper-K GitLab container registry. Access requires valid Hyper-K GitLab credentials and a personal access token with read access to the container registry. First, create an HTTP token with registry read permission from your Hyper-K GitLab profile.
-
-Login to the registry with:
+Since the registry is private, first login with your Hyper-K GitLab credentials or a personal access token with container-registry read access:
 
 ```bash
 apptainer registry login --username <USERNAME> docker://registry.git.hyperk.org
 ```
 
-Then pull the latest fiTQun image:
+For reproducibility, the Apptainer definition file should use a fixed image digest rather than the moving latest tag. The tested image is built from:
 
 ```bash
-apptainer pull fiTQun_latest.sif docker://registry.git.hyperk.org/hyperk/recon/fitqun:latest
+registry.git.hyperk.org/hyperk/recon/fitqun@sha256:54e4856f12380b67853713f3992bac776292c36a6660fe54503131d9b688d490
 ```
 
-This image contains fiTQun and its dependencies; the full WCSim setup needed for all workflows is not present.
-
-### Building the fiTQun + WCSim image
-
-The combined image is built from the definition file:
-
-```text
-fiTQun_WCSim.def
-```
-
-Build it with:
+Build the derived fiTQun image with:
 
 ```bash
-apptainer build fiTQun_WCSim.sif fiTQun_WCSim.def
+apptainer build fiTQun.sif fiTQun.def
 ```
 
-This produces:
-
-```text
-fiTQun_WCSim.sif
-```
-
-which is intended to provide a single environment containing both fiTQun and WCSim-related components.
-
-## Environment setup
-
-The repository contains an environment helper script:
-
-```text
-fiTQun_WCSim_env.sh
-```
-
-Before running software inside or together with the container, inspect and source it if needed:
+This derived image keeps the official fiTQun installation, adds a runtime setup script, and downloads the Hyper-K tuning constants directly into:
 
 ```bash
-source fiTQun_WCSim_env.sh
+/usr/local/hk/fiTQun/const
 ```
 
-The purpose of this script is to define useful paths and environment variables for the local setup.
+The image is meant for fiTQun reconstruction only. WCSim event generation is handled by a separate WCSim image.
+
+### Building WCSim image
+
+
+The WCSim image is built from the Hyper-K software base image used by the official WCSim CI workflow:
+
+```bash
+ghcr.io/hyperk/hk-software:0.0.2
+```
+
+This image provides the main external dependencies, including ROOT, Geant4, hk-pilot, and the Hyper-K software environment. The WCSim source code is then cloned and built inside the derived Apptainer image.
+
+For reproducibility, the build uses a fixed WCSim commit rather than the moving develop branch:
+
+```bash
+5be124b35a5832bc1d90466169acc581d8b6fbd7
+```
+
+Build the WCSim image with:
+
+```bash
+apptainer build WCSim.sif WCSim.def
+```
+
+The derived image installs WCSim under:
+
+```bash
+/opt/WCSim/install
+```
+
+and provides a `%runscript` so that `apptainer run` automatically loads the ROOT/Geant4/WCSim environment and forwards the user-provided arguments to the WCSim executable.
+
+The image is meant for WCSim event generation only. fiTQun reconstruction is handled by a separate fiTQun image.
+
+
+## Basic usage
+
+### Running WCSim
+
+Use `WCSim.sif` to generate a WCSim ROOT file. Bind the directory containing the WCSim macro and bind the output directory to the same container path used inside the macro, for example `/output_data`:
+
+```bash
+apptainer run \
+  --bind "$(pwd)/WCSim_macros":/macros \
+  --bind "$(pwd)/WCSim_output_data":/output_data \
+  WCSim.sif \
+  /macros/muplus_michel_HK.mac \
+  /opt/WCSim/install/macros/tuning_parameters_hkfd.mac
+```
+
+The first argument is the user macro. The second argument is the WCSim tuning macro; the default Hyper-K far detector tuning file is already available inside the image.
+
+### Running fiTQun
+
+Use `fiTQun.sif` to reconstruct a WCSim ROOT file. The Hyper-K fiTQun constants are already stored inside the image, so only the directory containing the WCSim input file and the desired fiTQun output file has to be bind-mounted:
+
+```bash
+apptainer run \
+  --bind "$(pwd)/WCSim_output_data":/data \
+  fiTQun.sif \
+  -n 1 \
+  -p /usr/local/hk/fiTQun/ParameterOverrideFiles/HyperK.parameters.dat \
+  -r /data/fiTQun.root \
+  /data/WCSim_muplus_michel.root
+```
+
+Here `-n` selects the number of events to process, `-p` selects the fiTQun parameter override file, `-r` defines the output ROOT file, and the final argument is the input WCSim ROOT file.
 
 ## Compatibility note: WCSimRoot versions
 
-The combined `fiTQun_WCSim.sif` image currently contains two WCSimRoot installations:
+`fiTQun.sif` and `WCSim.sif` images currently contain two WCSimRoot installations:
 
-- `WCSimRoot 1.12.29`, inherited from the original `fiTQun_latest.sif` image and used by the pre-existing fiTQun build;
-- `WCSimRoot 1.12.30`, produced when the full WCSim installation is built inside the combined image.
+- `WCSimRoot 1.12.29`, inherited from the original `fiTQun.sif` image and used by the pre-existing fiTQun build;
+- `WCSimRoot 1.12.30`, produced when the full WCSim installation is built inside the dedicated WCSim image.
 
 This means that `runfiTQun` and `WCSim` may be linked against different WCSimRoot versions.
-This may cause compatibility problems: if a WCSim ROOT file produced by the full WCSim installation cannot be read correctly by runfiTQun the most likely issue is this mismatch between these two WCSimRoot versions.
+This may cause compatibility problems: if a WCSim ROOT file produced by the WCSim image cannot be read correctly by `runfiTQun`, the most likely issue is this mismatch between these two WCSimRoot versions.
 
-For a cleaner production setup, fiTQun should eventually be rebuilt against the same WCSimRoot installation used by the full WCSim build.
+## Compatibility note: detector geometry and fiTQun tuning
+
+The current WCSim and fiTQun chain is technically usable, but the detector geometry used during simulation must be consistent with the fiTQun tuning used during reconstruction.
+
+For example, the tested WCSim macro used the realistic Hyper-K geometry:
+
+```text
+/WCSim/WCgeom HyperK_HybridmPMT_IDonly_Realistic
+```
+
+while the fiTQun command above uses:
+
+```text
+/usr/local/hk/fiTQun/ParameterOverrideFiles/HyperK.parameters.dat
+```
+
+which sets:
+
+```text
+< fiTQun.WCSimConfig = HyperK >
+< fiTQun.WCSimPMTType = 20inchBandL >
+```
+
+This means that fiTQun runs with the available Hyper-K 20-inch B\&L PMT tuning files, not with a dedicated tuning for the full realistic hybrid/mPMT geometry. Therefore, this setup validates the technical chain:
+
+```text
+WCSim simulation -> WCSim ROOT file -> fiTQun reconstruction -> fiTQun ROOT output
+```
+
+but it should not be interpreted as a full physics validation of the realistic Hyper-K detector geometry. For physics studies, use a WCSim geometry compatible with the available fiTQun tuning, or provide dedicated fiTQun tuning files and parameter overrides for the chosen WCSim geometry.
+

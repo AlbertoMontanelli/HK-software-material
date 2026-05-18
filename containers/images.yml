@@ -1,33 +1,138 @@
-# References to remote Singularity/Apptainer images used for HK software studies.
+# References and provenance for remote/container images used for HK software studies.
 #
-# These files are NOT tracked by Git because they are large binary artifacts.
-# Access depends on the user's INFN account and network configuration.
+# Private Hyper-K GitLab registry access:
+#   apptainer registry login --username <USERNAME> docker://registry.git.hyperk.org
+#
+# The login must be done outside the Apptainer definition file.
 
-containers:
-  - name: fiTQun_latest
-    filename: fiTQun_latest.sif
+images:
+  - name: WCSim_HK
+    type: apptainer_sif
+    filename: WCSim.sif
     remote_user: cc
     host: marduk
-    path: /home/cc/HyperKamiokande/fiTQun_latest.sif
+    path: /home/cc/HyperKamiokande/images/WCSim.sif
     access:
-      direct: "Available from INFN network or VPN, if marduk is reachable directly."
-      via_jump: "ssh -J <INFN_USERNAME>@galilinux.pi.infn.it cc@marduk"
-    purpose: "fiTQun software environment."
+      direct: Available from INFN network or VPN, if marduk is reachable directly.
+      via_jump: ssh -J <INFN_USERNAME>@galilinux.pi.infn.it cc@marduk
+    local_build: true
+    definition_file: WCSim.def
+    purpose: >-
+      Clean WCSim runtime image built from the same base environment used by the
+      official WCSim CI workflow.  It is used to generate WCSim ROOT files.
+    base_image:
+      uri: docker://ghcr.io/hyperk/hk-software:0.0.2
+      role: >-
+        Provides the external Hyper-K software stack used by the WCSim CI,
+        including ROOT, Geant4, hk-pilot and hk-software.
+    wcsim_source:
+      repository: https://github.com/WCSim/WCSim.git
+      branch_at_build_time: develop
+      pinned_commit: 5be124b35a5832bc1d90466169acc581d8b6fbd7
+      commit_note: >-
+        Fixed commit used during the tested setup.  This is preferable to using
+        the moving develop branch directly when reproducibility is required.
+    main_software_versions:
+      root: 6.26/04
+      geant4: 10.3.3
+      python: 3.8.13
+      hk_system: Linux_x86_64-gcc_8-python_3.8.13
+    installed_paths:
+      wcsim_install: /opt/WCSim/install
+      wcsim_executable: /opt/WCSim/install/bin/WCSim
+      wcsim_setup: /opt/WCSim/install/bin/this_wcsim.sh
+      common_setup: /opt/setup.sh
+      tuning_macro: /opt/WCSim/install/macros/tuning_parameters_hkfd.mac
+    run_mode:
+      command: apptainer run
+      runscript_behavior: >-
+        The runscript sources /opt/setup.sh, changes to $WCSIM_BUILD_DIR and
+        forwards all user-provided arguments to the WCSim executable.
+      example: >-
+        apptainer run --bind ./WCSim_macros:/macros --bind ./work_data:/output_data
+        WCSim.sif /macros/muplus_michel_HK.mac
+        /opt/WCSim/install/macros/tuning_parameters_hkfd.mac
     tracked_in_git: false
 
-  - name: fiTQun_WCSim
-    filename: fiTQun_WCSim.sif
+  - name: fiTQun_HK
+    type: apptainer_sif
+    filename: fiTQun.sif
     remote_user: cc
     host: marduk
-    path: /home/cc/HyperKamiokande/fiTQun_WCSim.sif
+    path: /home/cc/HyperKamiokande/images/fiTQun.sif
     access:
-      direct: "Available from INFN network or VPN, if marduk is reachable directly."
-      via_jump: "ssh -J <INFN_USERNAME>@galilinux.pi.infn.it cc@marduk"
-    purpose: "fiTQun + WCSim software environment."
+      direct: Available from INFN network or VPN, if marduk is reachable directly.
+      via_jump: ssh -J <INFN_USERNAME>@galilinux.pi.infn.it cc@marduk
+    local_build: true
+    definition_file: fiTQun.def
+    purpose: >-
+      Convenience fiTQun runtime image derived from the official Hyper-K private
+      registry image.  It keeps the registry fiTQun installation, adds a runtime
+      setup script, preloads the Geant4/WCSimRoot libraries needed by ROOT, and
+      downloads the Hyper-K fiTQun constants into the expected const directory.
+    registry:
+      type: private_gitlab_container_registry
+      login_required: true
+      login_command: apptainer registry login --username <USERNAME> docker://registry.git.hyperk.org
+      repository: registry.git.hyperk.org/hyperk/recon/fitqun
+      tag_at_inspection_time: latest
+      pinned_reference: registry.git.hyperk.org/hyperk/recon/fitqun@sha256:54e4856f12380b67853713f3992bac776292c36a6660fe54503131d9b688d490
+      manifest_digest: sha256:54e4856f12380b67853713f3992bac776292c36a6660fe54503131d9b688d490
+      configuration_digest: sha256:865451e3065ee7062b8e17f33765de7bdecef25a3716855f51e35141770553da
+      published_at: 2026-05-12T09:49:06+02:00
+      note: >-
+        The digest was recorded from the Hyper-K GitLab registry page.  The .def
+        file should use the pinned digest rather than latest for reproducibility.
+    source_state_inside_registry_image:
+      fitqun_repository_path: /usr/local/hk/fiTQun
+      fitqun_commit_found_inside_image: cfec015ae76d9097cac6c7cb29c6b3fc3f6fdf87
+      git_status_note: >-
+        The inspected registry image contained minor untracked/modified files,
+        so the commit is useful provenance but not a complete clean-source
+        guarantee by itself.
+    main_software_versions:
+      root: 6.34/04
+      python: 3.12.1
+      hk_system: Linux_x86_64-gcc_8-python_3.12.1
+      fitqun: 6.4.4
+      wcsimroot: 1.12.29
+      toolframeworkcore: 3.0.0
+    linked_runtime_libraries:
+      root_install: /usr/local/hk/ROOT/install-Linux_x86_64-gcc_8-python_3.12.1
+      wcsimroot_install: /usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1
+      wcsimroot_library: /usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1/lib/libWCSimRoot.so.1.12.29
+      toolframeworkcore_library: /usr/local/hk/ToolFrameworkCore/install-Linux_x86_64-gcc_8-python_3.12.1/lib/libToolFrameworkCore.so.3.0.0
+      geant4_processes_library: /usr/local/hk/Geant4/install-10.3.3/lib64/libG4processes.so
+    fitqun_paths:
+      fitqun_root: /usr/local/hk/fiTQun
+      runfitqun: /usr/local/hk/fiTQun/install-Linux_x86_64-gcc_8-python_3.12.1/bin/runfiTQun
+      constants_dir: /usr/local/hk/fiTQun/const
+      hyperk_override: /usr/local/hk/fiTQun/ParameterOverrideFiles/HyperK.parameters.dat
+      runtime_setup: /opt/setup_fitqun.sh
+    downloaded_constants:
+      source_script: /usr/local/hk/fiTQun/sourceme_forHK
+      source_list: /usr/local/hk/fiTQun/HyperK_tune_files.list
+      destination: /usr/local/hk/fiTQun/const
+      required_hyperk_files:
+        - fiTQun_scattablesF_HyperK.root
+        - fiTQun_scattable3d_HyperK.root
+        - angResp_HyperK_20inchBandL.root
+        - cPDFpar_20inchBandL.root
+        - 11_tpdfpar_HyperK_20inchBandL.root
+        - 13_tpdfpar_HyperK_20inchBandL.root
+        - 211_tpdfpar_HyperK_20inchBandL.root
+        - CProf_11_fit_WCSim.root
+        - CProf_13_fit_WCSim.root
+        - CProf_211_fit_WCSim.root
+    run_mode:
+      command: apptainer run
+      runscript_behavior: >-
+        The runscript sources /opt/setup_fitqun.sh and forwards all user-provided
+        arguments to runfiTQun.  The Hyper-K override file is deliberately not
+        hard-coded, because the parameter file has physical meaning and should be
+        explicit in the run command.
+      example: >-
+        apptainer run --bind ./work_data:/data fiTQun_HK.sif -n 1 -p
+        /usr/local/hk/fiTQun/ParameterOverrideFiles/HyperK.parameters.dat -r
+        /data/fitqun_from_new_wcsim.root /data/wcsim_HK_muplus_michel.root
     tracked_in_git: false
-
-related_files:
-  - filename: fiTQun_WCSim.def
-    description: "Definition file used to document or rebuild the fiTQun/WCSim container, if available."
-  - filename: fiTQun_WCSim_env.sh
-    description: "Environment setup file associated with the fiTQun/WCSim container, if available."

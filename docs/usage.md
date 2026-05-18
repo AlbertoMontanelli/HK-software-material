@@ -4,7 +4,7 @@ This page summarizes how to use the material in this repository:
 
 1. `README.md` for the general purpose of the repository;
 2. `docs/access.md` for instructions on how to reach the INFN machines;
-3. `docs/containers.md` for the list and location of the available `.sif` images;
+3. `docs/containers.md` for the list, location, building and usage of the available `.sif` images;
 4. `containers/images.yml` for a structured summary of the container metadata;
 5. `docs/usage.md`, this file, for practical usage and image-building notes;
 6. [HK Software Guide](_static/HK_Software_Guide.pdf) for the complete software guide;
@@ -23,8 +23,8 @@ HK-software-material/
 ├── LICENSE
 ├── HK_Software_Guide.tex
 ├── HK_software_guide.pdf
-├── fiTQun_WCSim.def
-├── fiTQun_WCSim_env.sh
+├── fiTQun.def
+├── WCSim.def
 ├── PhD_thesis_jiang_subevent_improving.pdf
 ├── PhD_thesis_tobayama_fiTQun.pdf
 ├── containers/

@@ -59,13 +59,8 @@ cd /home/cc/HyperKamiokande
 ls -lh
 ```
 
-Expected relevant files include:
+The relevant files such as the container images are in:
 
-```text
-fiTQun_latest.sif
-fiTQun_WCSim.sif
-fiTQun_WCSim.def
-fiTQun_WCSim_env.sh
-fiTQun_git_repo/
-utils/
+```bash
+cd /home/cc/HyperKamiokande/containers
 ```

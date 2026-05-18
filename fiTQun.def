@@ -1,0 +1,76 @@
+Bootstrap: docker
+From: registry.git.hyperk.org/hyperk/recon/fitqun@sha256:54e4856f12380b67853713f3992bac776292c36a6660fe54503131d9b688d490
+
+%post
+    set -eo pipefail
+
+    echo "=== Create fiTQun runtime setup script ==="
+    cat > /opt/setup_fitqun.sh <<'EOF'
+#!/bin/bash
+
+export FITQUN_ROOT=/usr/local/hk/fiTQun
+
+export ROOT_INSTALL=/usr/local/hk/ROOT/install-Linux_x86_64-gcc_8-python_3.12.1
+export FITQUN_INSTALL=/usr/local/hk/fiTQun/install-Linux_x86_64-gcc_8-python_3.12.1
+export WCSIMROOT_INSTALL=/usr/local/hk/WCSimRoot/install-Linux_x86_64-gcc_8-python_3.12.1
+export TOOLFRAMEWORKCORE_INSTALL=/usr/local/hk/ToolFrameworkCore/install-Linux_x86_64-gcc_8-python_3.12.1
+
+export PATH="$ROOT_INSTALL/bin:$FITQUN_INSTALL/bin:$PATH"
+
+export LD_LIBRARY_PATH="$ROOT_INSTALL/lib:$FITQUN_INSTALL/lib:$WCSIMROOT_INSTALL/lib:$TOOLFRAMEWORKCORE_INSTALL/lib:${LD_LIBRARY_PATH:-}"
+
+export ROOT_INCLUDE_PATH="$WCSIMROOT_INSTALL/include/WCSimRoot:${ROOT_INCLUDE_PATH:-}"
+EOF
+
+
+    chmod +x /opt/setup_fitqun.sh
+
+    echo "=== Download Hyper-K fiTQun constants into the standard const directory ==="
+
+    export FITQUN_ROOT=/usr/local/hk/fiTQun
+    export PATH="$FITQUN_ROOT:$PATH"
+
+    mkdir -p "$FITQUN_ROOT/const"
+    cd "$FITQUN_ROOT"
+
+    # The fiTQun helper script intentionally checks the MD5 sum before
+    # downloading each file. For missing files this first check fails,
+    # so 'set -e' must be disabled while sourcing the script.
+    set +e
+    source ./sourceme_forHK
+    DOWNLOAD_STATUS=$?
+    set -e
+
+    if [ "$DOWNLOAD_STATUS" -ne 0 ]; then
+        echo "ERROR: Hyper-K fiTQun constants download failed."
+        exit "$DOWNLOAD_STATUS"
+    fi
+
+    echo "=== Check required Hyper-K constants ==="
+    test -f "$FITQUN_ROOT/const/fiTQun_scattablesF_HyperK.root"
+    test -f "$FITQUN_ROOT/const/angResp_HyperK_20inchBandL.root"
+    test -f "$FITQUN_ROOT/const/cPDFpar_20inchBandL.root"
+    test -f "$FITQUN_ROOT/const/11_tpdfpar_HyperK_20inchBandL.root"
+    test -f "$FITQUN_ROOT/const/13_tpdfpar_HyperK_20inchBandL.root"
+    test -f "$FITQUN_ROOT/const/211_tpdfpar_HyperK_20inchBandL.root"
+    test -f "$FITQUN_ROOT/const/CProf_11_fit_WCSim.root"
+    test -f "$FITQUN_ROOT/const/CProf_13_fit_WCSim.root"
+    test -f "$FITQUN_ROOT/const/CProf_211_fit_WCSim.root"
+
+
+    echo "=== Record fiTQun provenance, if the source repository is present ==="
+    {
+        echo "Registry image: registry.git.hyperk.org/hyperk/recon/fitqun@sha256:54e4856f12380b67853713f3992bac776292c36a6660fe54503131d9b688d490"
+        echo "Registry published at: 2026-05-12T09:49:06+02:00"
+        echo -n "fiTQun commit: "
+        git -C /usr/local/hk/fiTQun rev-parse HEAD 2>/dev/null || echo "unknown"
+    } > /opt/fitqun_build_info.txt
+
+    echo "=== fiTQun runtime image completed successfully ==="
+
+%runscript
+    set -eo pipefail
+
+    source /opt/setup_fitqun.sh
+
+    exec runfiTQun "$@"
