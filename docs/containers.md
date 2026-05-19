@@ -173,34 +173,3 @@ Here `-n` selects the number of events to process, `-p` selects the fiTQun param
 This means that `runfiTQun` and `WCSim` may be linked against different WCSimRoot versions.
 This may cause compatibility problems: if a WCSim ROOT file produced by the WCSim image cannot be read correctly by `runfiTQun`, the most likely issue is this mismatch between these two WCSimRoot versions.
 
-## Compatibility note: detector geometry and fiTQun tuning
-
-The current WCSim and fiTQun chain is technically usable, but the detector geometry used during simulation must be consistent with the fiTQun tuning used during reconstruction.
-
-For example, the tested WCSim macro used the realistic Hyper-K geometry:
-
-```text
-/WCSim/WCgeom HyperK_HybridmPMT_IDonly_Realistic
-```
-
-while the fiTQun command above uses:
-
-```text
-/usr/local/hk/fiTQun/ParameterOverrideFiles/HyperK.parameters.dat
-```
-
-which sets:
-
-```text
-< fiTQun.WCSimConfig = HyperK >
-< fiTQun.WCSimPMTType = 20inchBandL >
-```
-
-This means that fiTQun runs with the available Hyper-K 20-inch B\&L PMT tuning files, not with a dedicated tuning for the full realistic hybrid/mPMT geometry. Therefore, this setup validates the technical chain:
-
-```text
-WCSim simulation -> WCSim ROOT file -> fiTQun reconstruction -> fiTQun ROOT output
-```
-
-but it should not be interpreted as a full physics validation of the realistic Hyper-K detector geometry. For physics studies, use a WCSim geometry compatible with the available fiTQun tuning, or provide dedicated fiTQun tuning files and parameter overrides for the chosen WCSim geometry.
-

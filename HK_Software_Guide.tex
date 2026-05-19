@@ -871,42 +871,6 @@ fiTQun
 which stores the reconstruction results.
 
 
-\subsection{Geometry and tuning compatibility}
-\label{subsec:geometry_compatibility}
-
-The technical chain works, but the detector configuration used by WCSim and the tuning configuration used by fiTQun are not necessarily identical.\\
-The WCSim macro used in the present test selects:
-\begin{lstlisting}[style=terminal]
-/WCSim/WCgeom HyperK_HybridmPMT_IDonly_Realistic
-\end{lstlisting}
-whereas the fiTQun override uses:
-\begin{lstlisting}[style=terminal]
-< fiTQun.WCSimConfig = HyperK >
-< fiTQun.WCSimPMTType = 20inchBandL >
-\end{lstlisting}
-This means that fiTQun reconstructs the event using Hyper-K tuning files for the \texttt{20inchBandL} PMT type. In the tested run, fiTQun reports:
-\begin{lstlisting}[style=terminal]
-NumPMT=19746
-\end{lstlisting}
-which corresponds to the main ID 20-inch PMT collection of the WCSim geometry. Therefore, fiTQun can run because it uses the primary ID PMT collection, but this does not imply that the full hybrid/mPMT realistic detector configuration is modeled consistently.\\
-This distinction is important. fiTQun is not only a ROOT-file reader: it uses detector-dependent likelihood ingredients, including charge PDFs, time PDFs, angular response, scattering tables and Cherenkov profiles. If these tuning files correspond to a different detector configuration from the one used in WCSim, the reconstruction can be numerically stable but physically biased. Possible consequences are biases in reconstructed vertex position, direction, momentum and particle identification.\\
-A search inside the fiTQun image showed that no dedicated override file is available for:
-\begin{lstlisting}[style=terminal]
-HyperK_HybridmPMT_IDonly_Realistic
-HyperK_HybridmPMT_WithOD_Realistic
-\end{lstlisting}
-The available Hyper-K override assumes a single PMT type, \texttt{20inchBandL}, and does not define a \texttt{fiTQun.PMTtypeMapFile}. Therefore, the present setup should be interpreted as a successful \textbf{technical validation} of the chain:
-\begin{lstlisting}
-WCSim simulation -> WCSim ROOT file -> fiTQun reconstruction -> fiTQun ROOT output
-\end{lstlisting}
-but not as a full physics validation of the realistic hybrid Hyper-K geometry.\\
-For physically consistent studies, there are two possible routes:
-\begin{enumerate}
-    \item generate WCSim events with a geometry compatible with the available \texttt{HyperK.parameters.dat} and \texttt{20inchBandL} tuning files;
-    \item obtain or produce dedicated fiTQun tuning files and parameter overrides for \texttt{HyperK\_HybridmPMT\_IDonly\_Realistic} or \texttt{HyperK\_HybridmPMT\_WithOD\_Realistic}.
-\end{enumerate}
-
-
 
 
 \appendix
