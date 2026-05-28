@@ -1,0 +1,210 @@
+Bootstrap: docker
+From: almalinux:8
+
+%post
+    set -eo pipefail
+
+    echo "=== Install system packages ==="
+    dnf install -y \
+        wget \
+        git \
+        gcc \
+        gcc-c++ \
+        make \
+        which \
+        ca-certificates \
+        bzip2 \
+        tar \
+        gzip \
+        xz \
+        findutils \
+        mesa-libGL \
+        libX11 \
+        libXext \
+        libXrender \
+        libSM \
+        libICE \
+        fontconfig
+
+    dnf clean all
+
+    echo "=== Install Miniforge/Mamba ==="
+    wget -O /tmp/miniforge.sh \
+        https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
+
+    bash /tmp/miniforge.sh -b -p /opt/conda
+    rm -f /tmp/miniforge.sh
+
+    . /opt/conda/etc/profile.d/conda.sh
+
+    echo "=== Create minimal Conda environment with ROOT/PyROOT ==="
+    mamba create -y -n wcsim-pyroot \
+        -c conda-forge \
+        python=3.8 \
+        root=6.26.* \
+        pip \
+        cmake \
+        ninja \
+        make \
+        git
+
+    echo "=== Activate environment ==="
+    conda activate wcsim-pyroot
+
+    echo "=== Configure pip network behaviour ==="
+    export PIP_DEFAULT_TIMEOUT=120
+    export PIP_RETRIES=10
+    export PIP_PROGRESS_BAR=off
+
+    echo "=== Upgrade pip tools ==="
+    python -m pip install --timeout 120 --retries 10 --upgrade "pip<25" setuptools wheel
+
+    echo "=== Install core scientific Python packages ==="
+    python -m pip install --timeout 120 --retries 10 --prefer-binary \
+        numpy \
+        scipy \
+        pandas \
+        matplotlib \
+        h5py \
+        pyarrow \
+        tables \
+        numba
+
+    echo "=== Install plotting and notebook packages ==="
+    python -m pip install --timeout 120 --retries 10 --prefer-binary \
+        plotly \
+        ipython \
+        jupyterlab \
+        notebook
+
+    echo "=== Install HEP Python packages ==="
+    python -m pip install --timeout 120 --retries 10 --prefer-binary \
+        uproot \
+        awkward \
+        vector \
+        hist \
+        boost-histogram \
+        mplhep \
+        particle \
+        iminuit \
+        correctionlib
+
+    echo "=== Install ML/dev utilities ==="
+    python -m pip install --timeout 120 --retries 10 --prefer-binary \
+        scikit-learn \
+        tqdm \
+        loguru \
+        rich \
+        pydantic \
+        pytest \
+        black \
+        ruff
+    
+    echo "=== Install PyTorch CUDA wheel with pip ==="
+    python -m pip install --timeout 300 --retries 10 --prefer-binary \
+        torch==2.4.1 \
+        torchvision==0.19.1 \
+        torchaudio==2.4.1 \
+        --index-url https://download.pytorch.org/whl/cu118
+
+    echo "=== Clone WCSim ==="
+    mkdir -p /opt/WCSimRoot
+    git clone https://github.com/WCSim/WCSim.git /opt/WCSimRoot/src
+
+    cd /opt/WCSimRoot/src
+
+    # Same WCSim commit used in your previous WCSim image.
+    # Keeping a fixed commit makes the build reproducible.
+    git checkout 5be124b35a5832bc1d90466169acc581d8b6fbd7
+
+    echo "WCSim commit:" > /opt/WCSimRoot/WCSimRoot_build_info.txt
+    git rev-parse HEAD >> /opt/WCSimRoot/WCSimRoot_build_info.txt
+
+    echo "=== Build WCSimRoot-only library ==="
+    mkdir -p /opt/WCSimRoot/build /opt/WCSimRoot/install
+    cd /opt/WCSimRoot/build
+
+    cmake ../src \
+        -D CMAKE_INSTALL_PREFIX=/opt/WCSimRoot/install \
+        -D WCSim_WCSimRoot_only=ON
+
+    make -j"$(nproc)"
+    make install
+
+    echo "=== Create common setup script ==="
+    cat > /opt/setup_wcsim_pyroot.sh <<'EOF'
+#!/bin/bash
+
+source /opt/conda/etc/profile.d/conda.sh
+conda activate wcsim-pyroot
+
+export WCSIMROOT_INSTALL=/opt/WCSimRoot/install
+export PATH="$WCSIMROOT_INSTALL/bin:$PATH"
+export LD_LIBRARY_PATH="$WCSIMROOT_INSTALL/lib:$LD_LIBRARY_PATH"
+export ROOT_INCLUDE_PATH="$WCSIMROOT_INSTALL/include:$ROOT_INCLUDE_PATH"
+
+# Some WCSim installations provide this setup file.
+if [ -f "$WCSIMROOT_INSTALL/bin/this_wcsim.sh" ]; then
+    source "$WCSIMROOT_INSTALL/bin/this_wcsim.sh"
+fi
+EOF
+
+    chmod +x /opt/setup_wcsim_pyroot.sh
+
+    echo "=== Test Python imports ==="
+    source /opt/setup_wcsim_pyroot.sh
+
+    python - <<'EOF'
+import ROOT
+import numpy
+import scipy
+import pandas
+import matplotlib
+import plotly
+import uproot
+import awkward
+import h5py
+import torch
+
+print("ROOT:", ROOT.gROOT.GetVersion())
+print("numpy:", numpy.__version__)
+print("scipy:", scipy.__version__)
+print("pandas:", pandas.__version__)
+print("matplotlib:", matplotlib.__version__)
+print("plotly:", plotly.__version__)
+print("uproot:", uproot.__version__)
+print("awkward:", awkward.__version__)
+print("h5py:", h5py.__version__)
+print("torch:", torch.__version__)
+print("torch CUDA build:", torch.version.cuda)
+EOF
+
+    echo "=== Test WCSimRoot library loading ==="
+    python - <<'EOF'
+import ROOT
+
+status = ROOT.gSystem.Load("libWCSimRoot.so")
+print("Load libWCSimRoot.so status:", status)
+
+if status < 0:
+    raise RuntimeError("Could not load libWCSimRoot.so")
+EOF
+
+    echo "=== WCSimRootPyROOT image completed successfully ==="
+
+%environment
+    export PATH=/opt/conda/envs/wcsim-pyroot/bin:/opt/conda/condabin:/opt/WCSimRoot/install/bin:$PATH
+    export WCSIMROOT_INSTALL=/opt/WCSimRoot/install
+    export LD_LIBRARY_PATH=/opt/WCSimRoot/install/lib:$LD_LIBRARY_PATH
+    export ROOT_INCLUDE_PATH=/opt/WCSimRoot/install/include:$ROOT_INCLUDE_PATH
+
+%runscript
+    set -eo pipefail
+
+    source /opt/setup_wcsim_pyroot.sh
+
+    if [ "$#" -eq 0 ]; then
+        exec python
+    else
+        exec "$@"
+    fi

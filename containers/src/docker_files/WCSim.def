@@ -1,0 +1,77 @@
+Bootstrap: docker
+From: ghcr.io/hyperk/hk-software:0.0.2
+
+%post
+    set -eo pipefail
+
+    echo "=== Fix CentOS repositories ==="
+    cd /etc/yum.repos.d/
+    sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+    sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+
+    echo "=== Install HepMC3, as in the WCSim CI workflow ==="
+    yum install -y \
+      HepMC3 \
+      HepMC3-devel \
+      HepMC3-search \
+      HepMC3-search-devel \
+      HepMC3-interfaces-devel \
+      HepMC3-doc
+
+    echo "=== Apply hk-software setup fix used in the WCSim CI workflow ==="
+    cd /usr/local/hk/hk-software/install-Linux_x86_64-gcc_8-python_3.8.13/
+    sed -i -e 's/LD_LIBRARY_PATH=LD_LIBRARY_PATH/LD_LIBRARY_PATH=$LD_LIBRARY_PATH/' setup.sh
+
+    echo "=== Create common setup script ==="
+    cat > /opt/setup.sh <<'EOF'
+source /usr/local/hk/Geant4/install-Linux_x86_64-gcc_8-python_3.8.13/bin/geant4.sh
+source /usr/local/hk/hk-pilot/setup.sh
+source /usr/local/hk/hk-software/install-Linux_x86_64-gcc_8-python_3.8.13/setup.sh
+source /opt/WCSim/install/bin/this_wcsim.sh
+EOF
+
+    echo "=== Clone WCSim ==="
+    mkdir -p /opt/WCSim
+    git clone https://github.com/WCSim/WCSim.git /opt/WCSim/src
+
+    cd /opt/WCSim/src
+
+    # For full reproducibility, prefer a fixed commit over a moving branch.
+    # This is the commit tested during the present setup work.
+    git checkout 5be124b35a5832bc1d90466169acc581d8b6fbd7
+
+    echo "WCSim commit:" > /opt/WCSim/WCSim_build_info.txt
+    git rev-parse HEAD >> /opt/WCSim/WCSim_build_info.txt
+
+    echo "=== Build and install WCSim ==="
+    cd /opt/WCSim
+    mkdir -p build install
+    cd build
+
+    source /usr/local/hk/Geant4/install-Linux_x86_64-gcc_8-python_3.8.13/bin/geant4.sh
+    source /usr/local/hk/hk-pilot/setup.sh
+    source /usr/local/hk/hk-software/install-Linux_x86_64-gcc_8-python_3.8.13/setup.sh
+
+    /usr/bin/cmake ../src \
+      -D CMAKE_INSTALL_PREFIX=/opt/WCSim/install
+
+    make -j$(nproc)
+    make install
+
+    echo "=== Check WCSim installation ==="
+    test -x /opt/WCSim/install/bin/WCSim
+    test -f /opt/WCSim/install/bin/this_wcsim.sh
+    test -f /opt/WCSim/install/macros/jobOptions.mac
+    test -f /opt/WCSim/install/macros/tuning_parameters_hkfd.mac
+    test -f /opt/WCSim/install/data/CathodeParameters.txt
+    test -f /opt/WCSim/install/mPMT-configfiles/mPMTconfig_19_nuPrism_3ring.txt
+
+    echo "=== WCSim build completed successfully ==="
+
+%runscript
+    set -eo pipefail
+
+    source /opt/setup.sh
+    cd "$WCSIM_BUILD_DIR"
+
+    exec WCSim "$@"
