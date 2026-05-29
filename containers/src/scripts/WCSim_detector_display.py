@@ -5,7 +5,7 @@ import math
 
 import matplotlib.pyplot as plt
 import numpy as np
-import plotly.graph_objects as go
+import plotly.graph_objects as go  # type: ignore
 import ROOT  # type: ignore
 
 
@@ -172,9 +172,9 @@ def collect_digitized_hits(event, trigger_index=0):
     return charge_by_tube, time_by_tube
 
 
-def make_event_display(
+def make_2D_event_display(
     input_file,
-    output_pdf,
+    output_file,
     event_index=0,
     trigger_index=0,
 ):
@@ -258,24 +258,21 @@ def make_event_display(
     ax.legend(loc="upper right")
 
     fig.tight_layout()
-    fig.savefig(output_pdf, dpi=1200)
+    fig.savefig(str(output_file) + ".pdf", dpi=1200)
     plt.close(fig)
 
-    print(f"Saved: {output_pdf}")
+    print(f"Saved: {output_file}.pdf")
     print(f"Number of hit PMTs: {len(hit_q)}")
     if len(hit_q) > 0:
         print(f"Total charge: {hit_q.sum():.2f} p.e.")
         print(f"Max PMT charge: {hit_q.max():.2f} p.e.")
 
 
-def make_3d_event_display(
-    pmt_map,
-    hit_charge,
-    output_html,
+def make_3D_event_display(
+    input_file,
+    output_file,
     event_index=0,
     trigger_index=0,
-    vertex=(0.0, 0.0, 0.0),
-    direction=(1.0, 0.0, 0.0),
 ):
     """
     Make an interactive 3D WCSim event display.
@@ -283,6 +280,20 @@ def make_3d_event_display(
     PMTs are drawn at their real WCSim positions.
     Hit PMTs are colored by digitized charge.
     """
+    load_wcsim_library()
+
+    root_file = ROOT.TFile.Open(input_file)
+    if not root_file or root_file.IsZombie():
+        raise RuntimeError(f"Could not open ROOT file: {input_file}")
+
+    geom = get_geometry(root_file)
+    event = get_event(root_file, event_index)
+
+    pmt_map = build_pmt_map(geom)
+    charge_by_tube, _ = collect_digitized_hits(
+        event,
+        trigger_index=trigger_index,
+    )
 
     all_x, all_y, all_z = [], [], []
     hit_x, hit_y, hit_z, hit_q = [], [], [], []
@@ -296,11 +307,11 @@ def make_3d_event_display(
         all_y.append(y)
         all_z.append(z)
 
-        if tube_id in hit_charge:
+        if tube_id in charge_by_tube:
             hit_x.append(x)
             hit_y.append(y)
             hit_z.append(z)
-            hit_q.append(hit_charge[tube_id])
+            hit_q.append(charge_by_tube[tube_id])
 
     fig = go.Figure()
 
@@ -337,8 +348,27 @@ def make_3d_event_display(
         )
     )
 
-    # Draw particle direction arrow approximately.
+    # Draw particle direction arrow.
+    trigger = event.GetTrigger(trigger_index)
+    track = trigger.GetTracks().At(0)
+
+    vertex = np.array(
+        [
+            float(track.GetStart(0)),
+            float(track.GetStart(1)),
+            float(track.GetStart(2)),
+        ]
+    )
+
+    direction = np.array(
+        [
+            float(track.GetDir(0)),
+            float(track.GetDir(1)),
+            float(track.GetDir(2)),
+        ]
+    )
     vx, vy, vz = vertex
+    print(f"Particle vertex: ({vx:.1f}, {vy:.1f}, {vz:.1f}) cm")
     dx, dy, dz = direction
     norm = np.sqrt(dx * dx + dy * dy + dz * dz)
 
@@ -386,7 +416,7 @@ def make_3d_event_display(
         legend=dict(x=0.02, y=0.98),
     )
 
-    fig.write_html(output_html)
+    fig.write_html(str(output_file) + ".html")
 
 
 def main():
@@ -397,9 +427,9 @@ def main():
         help="Input WCSim ROOT file.",
     )
     argument_parser.add_argument(
-        "output_pdf",
+        "output_file",
         type=str,
-        help="Output PDF file for the event display.",
+        help="Output PDF or HTML file for the event display.",
     )
     argument_parser.add_argument(
         "--event_index",
@@ -413,13 +443,26 @@ def main():
         default=0,
         help="Index of the trigger to display (default: 0).",
     )
-    args = argument_parser.parse_args()
-    make_event_display(
-        input_file=args.input_file,
-        output_pdf=args.output_pdf,
-        event_index=args.event_index,
-        trigger_index=args.trigger_index,
+    argument_parser.add_argument(
+        "--display_3D",
+        action="store_true",
+        help="If set, create an interactive 3D event display instead of 2D.",
     )
+    args = argument_parser.parse_args()
+    if args.display_3D:
+        make_3D_event_display(
+            input_file=args.input_file,
+            output_file=args.output_file,
+            event_index=args.event_index,
+            trigger_index=args.trigger_index,
+        )
+    else:
+        make_2D_event_display(
+            input_file=args.input_file,
+            output_file=args.output_file,
+            event_index=args.event_index,
+            trigger_index=args.trigger_index,
+        )
 
 
 if __name__ == "__main__":
