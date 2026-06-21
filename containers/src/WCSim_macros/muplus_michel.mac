@@ -1,5 +1,12 @@
 # Sample setup macro with no visualization
 
+# ============================================================
+# Random seed
+# ============================================================
+/WCSim/random/generator HEPJAMES
+#/WCSim/random/seed 123456 default
+/WCSim/random/seed 1
+
 /run/verbose 0
 /tracking/verbose 0
 /hits/verbose 0
@@ -140,22 +147,39 @@
 # Or you can use the G4 Particle Gun
 # for a full list of /gun/ commands see:
 # http://geant4.web.cern.ch/geant4/G4UsersDocuments/UsersGuides/ForApplicationDeveloper/html/Control/UIcommands/_gun_.html
-/mygen/generator gun
-/gun/particle mu+
+#/mygen/generator gun
+#/gun/particle mu+
 #/gun/particle pi0
-/gun/energy 2000 MeV
-/gun/direction 1 0 0 
-/gun/position 0 0 0  
+#/gun/energy 2000 MeV
+#/gun/direction 1 0 0 
+#/gun/position 0 0 0  
 
 # Or you can use the G4 General Particle Source
 # you can do a lot more with this than a monoenergetic, monodirectional, single-particle gun
 # for a full list of /gps/ commands see:
 # https://geant4.web.cern.ch/geant4/UserDocumentation/UsersGuides/ForApplicationDeveloper/html/ch02s07.html
-#/mygen/generator gps
-#/gps/particle e-
-#/gps/energy 500 MeV
-#/gps/direction 1 0 0
-#/gps/position 0 0 0
+/mygen/generator gps
+/gps/particle mu+
+
+# Random position in a conservative fiducial-like cylinder.
+# HyperK tank: height ~54.8 m, diameter ~70.8 m.
+# Here we keep a margin from the walls to increase stopping-muon probability.
+/gps/pos/type Volume
+/gps/pos/shape Cylinder
+/gps/pos/centre 0 0 0 m
+/gps/pos/radius 25 m
+/gps/pos/halfz 20 m
+
+# Isotropic angular distribution
+/gps/ang/type iso
+
+# Uniform kinetic-energy-like distribution between 150 and 500 MeV.
+# GPS 'Lin' with zero gradient is flat in energy.
+/gps/ene/type Lin
+/gps/ene/min 150 MeV
+/gps/ene/max 500 MeV
+/gps/ene/gradient 0
+/gps/ene/intercept 1
 
 # Or you can use the laser option
 # This is equivalent to the gps command, except that the gps particle energies are saved ignoring their mass
@@ -212,17 +236,17 @@
 #/gps/source/clear
 
 # Needed to prevent other decay than Bi-214
-/grdm/nucleusLimits 214 214 83 83 
+#/grdm/nucleusLimits 214 214 83 83 
 # if you need to use time bias
 #/grdm/decayBiasProfile data/biasprofile.dat
 #/grdm/analogueMC 0
 #/grdm/BRbias 0
 
 ## change the name of the output root file, default = wcsim.root
-/WCSimIO/RootFile /output_data/muplus_michel.root
+/WCSimIO/RootFile /output_data/muplus_michel_seed1_5k.root
 
 ## set a timer running on WCSimRunAction
 #/WCSimIO/Timer false
 
-/run/beamOn 1
+/run/beamOn 5000
 #exit

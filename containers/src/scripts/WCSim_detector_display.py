@@ -9,45 +9,37 @@ import plotly.graph_objects as go  # type: ignore
 import ROOT  # type: ignore
 
 
-def load_wcsim_library():
-    """
-    Load WCSim ROOT dictionary.
+def load_WCSim_trees(input_file):
+    ROOT.gSystem.Load("libWCSimRoot.so")
 
-    This requires that the WCSim environment has already been sourced,
-    e.g. this_wcsim.sh or your container setup script.
-    """
-    status = ROOT.gSystem.Load("libWCSimRoot.so")
-    if status < 0:
-        raise RuntimeError(
-            "Could not load libWCSimRoot.so. "
-            "Make sure you sourced the WCSim environment inside the container."
-        )
+    root_file = ROOT.TFile.Open(str(input_file))
+    if not root_file or root_file.IsZombie():
+        raise RuntimeError(f"Could not open ROOT file: {input_file}")
 
+    wcsim_tree = root_file.Get("wcsimT")
+    if not wcsim_tree:
+        raise RuntimeError("Could not find TTree 'wcsimT'.")
 
-def get_geometry(root_file):
-    """
-    Read WCSim geometry from wcsimGeoT.
-    """
     geo_tree = root_file.Get("wcsimGeoT")
     if not geo_tree:
-        raise RuntimeError("Could not find tree wcsimGeoT in file.")
+        raise RuntimeError("Could not find TTree 'wcsimGeoT'.")
 
-    # The geometry is assumed to be the same for all entries
-    geo_tree.GetEntry(0)
-    # Return the geometry object linked to the branch "wcsimrootgeom".
-    # The geometry data is stored in the branch, setting the address of
-    # the geom object to the branch allows to read the geometry data
-    # into the geom object.
-    return geo_tree.wcsimrootgeom
+    event = ROOT.WCSimRootEvent()
+    wcsim_tree.SetBranchAddress("wcsimrootevent", ROOT.AddressOf(event))
 
+    geom = ROOT.WCSimRootGeom()
+    geo_tree.SetBranchAddress("wcsimrootgeom", ROOT.AddressOf(geom))
 
-def get_event(root_file, event_index):
-    """
-    Read one WCSim event from wcsimT.
-    """
-    event_tree = root_file.Get("wcsimT")
-    event_tree.GetEntry(event_index)
-    return event_tree.wcsimrootevent
+    n_entries = int(wcsim_tree.GetEntries())
+
+    return {
+        "root_file": root_file,
+        "wcsim_tree": wcsim_tree,
+        "geo_tree": geo_tree,
+        "event": event,
+        "geom": geom,
+        "n_entries": n_entries,
+    }
 
 
 def build_pmt_map(geom):
@@ -161,15 +153,105 @@ def collect_digitized_hits(event, trigger_index=0):
         charge = float(hit.GetQ())
         time = float(hit.GetT())
 
-        charge_by_tube[tube_id] = charge_by_tube.get(tube_id, 0.0) + charge
-
-        # For display/debugging: keep earliest digitized time per tube.
-        if tube_id not in time_by_tube:
-            time_by_tube[tube_id] = time
-        else:
-            time_by_tube[tube_id] = min(time_by_tube[tube_id], time)
+        charge_by_tube[tube_id] = charge
+        time_by_tube[tube_id] = time
 
     return charge_by_tube, time_by_tube
+
+
+def extract_true_tracks(trigger):
+    """
+    Extract true WCSim tracks from one trigger.
+
+    Returns a list of dictionaries with particle information.
+    """
+    tracks = []
+
+    n_tracks = trigger.GetNtrack()
+    true_tracks = trigger.GetTracks()
+
+    for i in range(n_tracks):
+        trk = true_tracks.At(i)
+
+        ipnu = int(trk.GetIpnu())  # PDG-like code in WCSim
+        parent_type = int(trk.GetParenttype())
+
+        start = np.array(
+            [
+                float(trk.GetStart(0)),
+                float(trk.GetStart(1)),
+                float(trk.GetStart(2)),
+            ]
+        )
+
+        stop = np.array(
+            [
+                float(trk.GetStop(0)),
+                float(trk.GetStop(1)),
+                float(trk.GetStop(2)),
+            ]
+        )
+
+        direction = np.array(
+            [
+                float(trk.GetDir(0)),
+                float(trk.GetDir(1)),
+                float(trk.GetDir(2)),
+            ]
+        )
+
+        norm = np.linalg.norm(direction)
+        if norm > 0:
+            direction = direction / norm
+
+        tracks.append(
+            {
+                "index": i,
+                "ipnu": ipnu,
+                "parent_type": parent_type,
+                "start": start,
+                "stop": stop,
+                "direction": direction,
+                "p": float(trk.GetP()),
+                "E": float(trk.GetE()),
+                "time": float(trk.GetTime()),
+            }
+        )
+
+    return tracks
+
+
+def filter_tracks(tracks):
+    """
+    Filter tracks based on criteria, e.g. parent_type == 0 (primary particles).
+    """
+    primary_tracks = []
+    secondary_tracks = []
+    for track in tracks:
+        if (
+            track["parent_type"] == 0
+            and track["ipnu"] == -13
+            and (track["E"] > track["p"])
+        ):
+            primary_tracks.append(track)
+            if len(primary_tracks) > 1:
+                print(
+                    f"Warning: multiple primary tracks found. "
+                    f"Track {track['index']} also matches criteria."
+                )
+        if (
+            track["parent_type"] == -13
+            and track["ipnu"] == -11
+            and track["E"] >= track["p"]
+            and (track["start"] == primary_tracks[0]["stop"]).all()
+        ):
+            secondary_tracks.append(track)
+            if len(secondary_tracks) > 1:
+                print(
+                    f"Warning: multiple secondary tracks found. "
+                    f"Track {track['index']} also matches criteria."
+                )
+    return primary_tracks, secondary_tracks
 
 
 def make_2D_event_display(
@@ -178,17 +260,23 @@ def make_2D_event_display(
     event_index=0,
     trigger_index=0,
 ):
-    load_wcsim_library()
+    data = load_WCSim_trees(input_file)
 
-    root_file = ROOT.TFile.Open(input_file)
-    if not root_file or root_file.IsZombie():
-        raise RuntimeError(f"Could not open ROOT file: {input_file}")
+    wcsim_tree = data["wcsim_tree"]
+    geo_tree = data["geo_tree"]
+    event = data["event"]
+    geom = data["geom"]
+    n_entries = data["n_entries"]
 
-    geom = get_geometry(root_file)
-    event = get_event(root_file, event_index)
+    if event_index < 0 or event_index >= n_entries:
+        raise IndexError(
+            f"event_index={event_index} outside valid range [0, {n_entries - 1}]"
+        )
+
+    wcsim_tree.GetEntry(event_index)
+    geo_tree.GetEntry(0)
 
     radius = float(geom.GetWCCylRadius())
-
     pmt_map = build_pmt_map(geom)
     charge_by_tube, _ = collect_digitized_hits(
         event,
@@ -268,6 +356,78 @@ def make_2D_event_display(
         print(f"Max PMT charge: {hit_q.max():.2f} p.e.")
 
 
+def get_track_points(track):
+    """Return start, stop, direction and real track length in cm."""
+    start = np.asarray(track["start"], dtype=float)
+    stop = np.asarray(track["stop"], dtype=float)
+
+    vector = stop - start
+    length = float(np.linalg.norm(vector))
+    direction = vector / length
+
+    return start, stop, direction, length
+
+
+def print_track_summary(label, track, length_cm):
+    """Print compact true-track information useful for debugging displays."""
+    print(
+        f"{label} true track summary:\n"
+        f"  PDG ipnu              = {track['ipnu']}\n"
+        f"  parent_type           = {track['parent_type']}\n"
+        f"  momentum |p|          = {track['p']:.3f} MeV/c\n"
+        f"  energy E              = {track['E']:.3f} MeV\n"
+        f"  real track length     = {length_cm:.3f} cm\n"
+        f"  start                 = {track['start']} cm\n"
+        f"  stop                  = {track['stop']} cm\n"
+    )
+
+
+def add_scaled_track_arrow(
+    fig,
+    start,
+    direction,
+    display_length_cm,
+    name,
+    color,
+    line_width=7,
+):
+    """Draw an artificially-scaled 3D arrow from start along direction.
+
+    The line length is display_length_cm. The cone is only the arrow head.
+    """
+    display_stop = start + display_length_cm * direction
+
+    fig.add_trace(
+        go.Scatter3d(
+            x=[start[0], display_stop[0]],
+            y=[start[1], display_stop[1]],
+            z=[start[2], display_stop[2]],
+            mode="lines",
+            line=dict(width=line_width, color=color),
+            name=name,
+        )
+    )
+
+    # Size the cone with the displayed track, but avoid it becoming invisible.
+    cone_size = max(150.0, 0.10 * display_length_cm)
+
+    fig.add_trace(
+        go.Cone(
+            x=[display_stop[0]],
+            y=[display_stop[1]],
+            z=[display_stop[2]],
+            u=[direction[0]],
+            v=[direction[1]],
+            w=[direction[2]],
+            sizemode="absolute",
+            sizeref=cone_size,
+            anchor="tip",
+            name=f"{name} arrow head",
+            showscale=False,
+        )
+    )
+
+
 def make_3D_event_display(
     input_file,
     output_file,
@@ -280,14 +440,21 @@ def make_3D_event_display(
     PMTs are drawn at their real WCSim positions.
     Hit PMTs are colored by digitized charge.
     """
-    load_wcsim_library()
+    data = load_WCSim_trees(input_file)
 
-    root_file = ROOT.TFile.Open(input_file)
-    if not root_file or root_file.IsZombie():
-        raise RuntimeError(f"Could not open ROOT file: {input_file}")
+    wcsim_tree = data["wcsim_tree"]
+    geo_tree = data["geo_tree"]
+    event = data["event"]
+    geom = data["geom"]
+    n_entries = data["n_entries"]
 
-    geom = get_geometry(root_file)
-    event = get_event(root_file, event_index)
+    if event_index < 0 or event_index >= n_entries:
+        raise IndexError(
+            f"event_index={event_index} outside valid range [0, {n_entries - 1}]"
+        )
+
+    wcsim_tree.GetEntry(event_index)
+    geo_tree.GetEntry(0)
 
     pmt_map = build_pmt_map(geom)
     charge_by_tube, _ = collect_digitized_hits(
@@ -350,60 +517,51 @@ def make_3D_event_display(
 
     # Draw particle direction arrow.
     trigger = event.GetTrigger(trigger_index)
-    track = trigger.GetTracks().At(0)
+    tracks = extract_true_tracks(trigger)
+    muon_track, electron_track = filter_tracks(tracks)
 
-    vertex = np.array(
-        [
-            float(track.GetStart(0)),
-            float(track.GetStart(1)),
-            float(track.GetStart(2)),
-        ]
+    muon_start, _, muon_dir, muon_length = get_track_points(muon_track[0])
+    electron_start, _, electron_dir, electron_length = get_track_points(
+        electron_track[0]
     )
 
-    direction = np.array(
-        [
-            float(track.GetDir(0)),
-            float(track.GetDir(1)),
-            float(track.GetDir(2)),
-        ]
+    print_track_summary("Muon", muon_track[0], muon_length)
+    print_track_summary("Electron", electron_track[0], electron_length)
+
+    # Artificial display scaling. The longest real track is drawn with this
+    # length; the other one is scaled by the same factor.
+    max_display_track_length_cm = 2500.0
+    max_real_track_length_cm = max(muon_length, electron_length)
+
+    display_scale = max_display_track_length_cm / max_real_track_length_cm
+
+    muon_display_length = muon_length * display_scale
+    electron_display_length = electron_length * display_scale
+
+    print(
+        "Artificial display scale:\n"
+        f"  scale factor           = {display_scale:.3f}\n"
+        f"  muon display length   = {muon_display_length:.3f} cm\n"
+        f"  electron display length = {electron_display_length:.3f} cm\n"
     )
-    vx, vy, vz = vertex
-    print(f"Particle vertex: ({vx:.1f}, {vy:.1f}, {vz:.1f}) cm")
-    dx, dy, dz = direction
-    norm = np.sqrt(dx * dx + dy * dy + dz * dz)
 
-    if norm > 0:
-        dx /= norm
-        dy /= norm
-        dz /= norm
+    add_scaled_track_arrow(
+        fig=fig,
+        start=muon_start,
+        direction=muon_dir,
+        display_length_cm=muon_display_length,
+        name="muon true direction",
+        color="green",
+    )
 
-        arrow_length = 3000.0  # cm, adjust depending on detector size
-
-        fig.add_trace(
-            go.Cone(
-                x=[vx + arrow_length * dx],
-                y=[vy + arrow_length * dy],
-                z=[vz + arrow_length * dz],
-                u=[dx],
-                v=[dy],
-                w=[dz],
-                sizemode="absolute",
-                sizeref=400,
-                name="gun direction",
-                showscale=False,
-            )
-        )
-
-        fig.add_trace(
-            go.Scatter3d(
-                x=[vx, vx + arrow_length * dx],
-                y=[vy, vy + arrow_length * dy],
-                z=[vz, vz + arrow_length * dz],
-                mode="lines",
-                name="particle direction",
-                line=dict(width=6),
-            )
-        )
+    add_scaled_track_arrow(
+        fig=fig,
+        start=electron_start,
+        direction=electron_dir,
+        display_length_cm=electron_display_length,
+        name="electron true direction",
+        color="red",
+    )
 
     fig.update_layout(
         title=f"WCSim 3D event display: event {event_index}, trigger {trigger_index}",
