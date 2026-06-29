@@ -58,16 +58,37 @@ def extract_true_tracks(trigger):
                 "start": start,
                 "stop": stop,
                 "direction": direction,
+                "M": float(trk.GetM()),
                 "p": float(trk.GetP()),
                 "E": float(trk.GetE()),
                 "time": float(trk.GetTime()),
+                "id": int(trk.GetId()),
+                "parent_id": int(trk.GetParentId()),
+                "creator": trk.GetCreatorProcessName(),
             }
         )
 
     return tracks
 
 
-def main(path, event_index=None):
+def print_track_info(dict_track, i):
+    print(
+        f"Track {i}: "
+        f"Geant4_id = {dict_track['id']}, "
+        f"parent_id = {dict_track['parent_id']}, "
+        f"PDG_id = {dict_track['ipnu']}, "
+        f"parent_type = {dict_track['parent_type']}, "
+        f"creator = {dict_track['creator']}, "
+        f"p = {dict_track['p']}, "
+        f"M = {dict_track['M']}, "
+        f"E = {dict_track['E']}, "
+        f"K = {dict_track['E'] - dict_track['M']}, "
+        f"time = {dict_track['time']}, "
+        f"start = {dict_track['start']}, stop = {dict_track['stop']}\n"
+    )
+
+
+def main(path, event_index=None, full_tracks=False):
     ROOT.gSystem.Load("libWCSimRoot.so")
     root_file = ROOT.TFile.Open(str(path))
 
@@ -93,26 +114,26 @@ def main(path, event_index=None):
         print("Number of triggers:", event.GetNumberOfEvents())
         print("Has subevents:", event.HasSubEvents())
 
+        # una sola volta per entry
+        truth_trigger = event.GetTrigger(0)
+        tracks = extract_true_tracks(truth_trigger)
+
+        print("\nTrue tracks information from trigger 0:")
+        for i, dict_track in enumerate(tracks):
+            if full_tracks or dict_track["parent_type"] in (0, -13):
+                print_track_info(dict_track, i)
+
+        print("=" * 80)
+        print("Trigger information for all triggers in this entry:")
         for itrigger in range(event.GetNumberOfEvents()):
             trigger = event.GetTrigger(itrigger)
 
             print("trigger", itrigger)
             print("trigger type:", trigger.GetTriggerType())
+            print("n tracks stored in this trigger:", trigger.GetNtrack())
             print("n digitized hits:", trigger.GetNcherenkovdigihits())
             print("sum Q:", trigger.GetSumQ())
-
-            tracks = extract_true_tracks(trigger)
-            print("\nTrue tracks information:")
-            for i in range(len(tracks)):
-                dict_track = tracks[i]
-                if dict_track["parent_type"] in (0, -13):
-                    print(
-                        f"Track {i}: ipnu={dict_track['ipnu']}, "
-                        f"parent_type={dict_track['parent_type']}, "
-                        f"start={dict_track['start']}, stop={dict_track['stop']}, "
-                        f"direction={dict_track['direction']}, p={dict_track['p']}, "
-                        f"E={dict_track['E']}, time={dict_track['time']}\n"
-                    )
+            print("*" * 40)
 
 
 if __name__ == "__main__":
@@ -130,6 +151,10 @@ if __name__ == "__main__":
         default=None,
         help="Index of the event to analyze. If omitted, all entries are analyzed.",
     )
-
+    parser.add_argument(
+        "--full_tracks",
+        action="store_true",
+        help="Print all tracks, including those with parent_type not equal to 0 or -13.",
+    )
     args = parser.parse_args()
-    main(args.input_file, event_index=args.event_index)
+    main(args.input_file, event_index=args.event_index, full_tracks=args.full_tracks)
