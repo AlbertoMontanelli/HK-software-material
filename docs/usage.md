@@ -11,10 +11,6 @@ This page summarizes how to use the material in this repository:
 7. [Tobayama PhD thesis](_static/PhD_thesis_tobayama_fiTQun.pdf) a useful thesis to understand the fiTQun environment;
 8. [Jiang PhD thesis](_static/PhD_thesis_jiang_subevent_improving.pdf) a useful thesis to understand the sub-event improving.
 
-For a more complete and detailed explanation, see the full PDF guide:
-
-[HK Software Guide](_static/HK_Software_Guide.pdf)
-
 ## Repository structure
 
 ```text
