@@ -65,6 +65,19 @@
     stringstyle=\color{teal}
 }
 
+% Stile per codice Python
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{orange},
+  showstringspaces=false,
+  breaklines=true,
+  escapeinside={(*@}{@*)},
+  literate={à}{{\`a}}1 {è}{{\`e}}1 {é}{{\'e}}1 {ù}{{\`u}}1 {ò}{{\`o}}1 {ì}{{\`i}}1 {’}{{'}}1 
+}
+
 % Numerazione interna
 \numberwithin{table}{subsection}
 \numberwithin{figure}{subsection}
@@ -617,6 +630,21 @@ The output ROOT file is selected with:
 \end{lstlisting}
 This file is physically written in the host directory bound to \texttt{/output\_data}.
 
+\subsection{Running other software inside the WCSim image}
+Note that the \texttt{\%runscript} section inside the docker file is executed only when you use \texttt{apptainer run WCSim.sif} command. However, it is possible to run the other software installed inside the image - as dependencies to WCSim, such as ROOT, Geant4, etc - with \texttt{exec} command and manually sourcing the script shell.\\
+For example to run ROOT to open a root file outside the container:
+\begin{lstlisting}[style=terminal]
+apptainer exec \
+  --bind output_data:/data \
+  WCSim.sif \
+  bash -lc 'source /opt/setup.sh && root -l'
+\end{lstlisting}
+Finally, inside root shell, the WCSim libraries are accessible and the external file is visible in the directory binded to the container:
+\begin{lstlisting}[style=terminal]
+root [0] gSystem->Load("libWCSimRoot.so");
+root [1] TFile *f = TFile::Open("/data/WCSim_filename.root");
+root [2] f->ls();
+\end{lstlisting}
 
 \section{fiTQun}
 \label{sec:fitqun}
@@ -872,6 +900,858 @@ which stores the reconstruction results.
 
 
 
+\section{Structure of WCSim ROOT files}
+\label{sec:wcsim_object_hierarchy}
+
+WCSim stores the simulated detector response in a ROOT file. The output is not a
+flat ntuple where each branch directly corresponds to a simple physics variable.
+Instead, the main event tree stores C++ objects, and the event information must
+be accessed through the WCSim ROOT classes.\\
+The most relevant trees are usually
+
+\begin{lstlisting}[language=C++]
+wcsimT
+wcsimGeoT
+wcsimRootOptionsT
+\end{lstlisting}
+The tree \texttt{wcsimT} contains the event information. The tree
+\texttt{wcsimGeoT} contains the detector geometry, while
+\texttt{wcsimRootOptionsT} stores the simulation options.\\
+A ROOT file can be inspected with
+
+\begin{lstlisting}[language=C++]
+TFile *f = TFile::Open("wcsim_output.root");
+f->ls();
+
+TTree *t = (TTree*) f->Get("wcsimT");
+t->Print();
+\end{lstlisting}
+or in PyROOT with
+\begin{lstlisting}[language=python]
+import ROOT
+
+f = ROOT.TFile.Open("wcsim_output.root")
+f.ls()
+
+tree = f.Get("wcsimT")
+tree.Print()
+\end{lstlisting}
+The command \texttt{f->ls()} shows the top-level objects stored in the file.
+The command \texttt{tree->Print()} shows the branch structure of the selected
+tree.
+
+\subsection{Global Structure of the Event Tree}
+
+For the geometry
+
+\begin{lstlisting}[language=C++]
+/WCSim/WCgeom HyperK_HybridmPMT_WithOD_Realistic
+\end{lstlisting}
+the event tree \texttt{wcsimT} contains three main event branches:
+
+\begin{lstlisting}[language=C++]
+wcsimrootevent
+wcsimrootevent2
+wcsimrootevent_OD
+\end{lstlisting}
+Each of these branches stores a \texttt{WCSimRootEvent} object. The meaning of the three branches is
+\begin{center}
+\begin{tabular}{lll}
+\hline
+ROOT branch & WCSim detector element & Physical meaning \\
+\hline
+\texttt{wcsimrootevent} &
+\texttt{tank} &
+Inner Detector, main 20-inch Box\&Line PMTs \\
+
+\texttt{wcsimrootevent2} &
+\texttt{tankPMT2} &
+Inner Detector, multi-PMT system \\
+
+\texttt{wcsimrootevent\_OD} &
+\texttt{OD} &
+Outer Detector PMT system \\
+\hline
+\end{tabular}
+\end{center}
+The word ``hybrid'' means that the Inner Detector contains two PMT systems: the
+main 20-inch PMTs and the mPMT modules. Therefore,
+\texttt{wcsimrootevent2} is not a raw-hit branch and it is not a duplicate of
+\texttt{wcsimrootevent}. It is the \texttt{WCSimRootEvent} branch associated
+with the mPMT system.\\
+The conceptual file hierarchy is
+\begin{lstlisting}
+ROOT file
+|
+|-- wcsimT
+|   |
+|   |-- entry 0
+|   |   |
+|   |   |-- wcsimrootevent       WCSimRootEvent for main ID PMTs
+|   |   |-- wcsimrootevent2      WCSimRootEvent for ID mPMTs
+|   |   `-- wcsimrootevent_OD    WCSimRootEvent for OD PMTs
+|   |
+|   |-- entry 1
+|   |   |
+|   |   |-- wcsimrootevent
+|   |   |-- wcsimrootevent2
+|   |   `-- wcsimrootevent_OD
+|   |
+|   `-- ...
+|
+|-- wcsimGeoT
+|
+`-- wcsimRootOptionsT
+\end{lstlisting}
+Thus, each entry of \texttt{wcsimT} contains one \texttt{WCSimRootEvent} object
+for each detector branch.
+
+\subsection{Reading a Branch: Meaning of \texttt{SetBranchAddress}}
+
+Opening the tree does not automatically load the content of an event branch into
+a Python or C++ object. ROOT must first be told where to place the content of the
+branch when an entry is read. This is the purpose of \texttt{SetBranchAddress}.\\
+In C++, one writes for example
+
+\begin{lstlisting}[language=C++]
+WCSimRootEvent *event = new WCSimRootEvent();
+tree->SetBranchAddress("wcsimrootevent", &event);
+\end{lstlisting}
+This connects the branch named \texttt{wcsimrootevent} to the memory address of
+the pointer \texttt{event}. After this connection has been made, the instruction
+\begin{lstlisting}
+tree->GetEntry(ientry);
+\end{lstlisting}
+loads entry \texttt{ientry} from the tree and fills the \texttt{WCSimRootEvent}
+object with the content of the branch \texttt{wcsimrootevent}.\\
+In PyROOT, the analogous pattern is
+\begin{lstlisting}[language=python]
+event = ROOT.WCSimRootEvent()
+tree.SetBranchAddress("wcsimrootevent", event)
+
+tree.GetEntry(ientry)
+\end{lstlisting}
+After \texttt{tree.GetEntry(ientry)}, the object \texttt{event} contains the
+\texttt{WCSimRootEvent} stored in that entry of the selected branch.\\
+The same logic can be used for the three detector branches:
+
+\begin{lstlisting}[language=python]
+event_main = ROOT.WCSimRootEvent()
+event_mpmt = ROOT.WCSimRootEvent()
+event_od   = ROOT.WCSimRootEvent()
+
+tree.SetBranchAddress("wcsimrootevent",    event_main)
+tree.SetBranchAddress("wcsimrootevent2",   event_mpmt)
+tree.SetBranchAddress("wcsimrootevent_OD", event_od)
+
+tree.GetEntry(ientry)
+\end{lstlisting}
+After \texttt{GetEntry}, the three objects contain the event information for the
+main ID PMTs, the ID mPMTs, and the OD PMTs, respectively.
+
+\subsection{From \texttt{WCSimRootEvent} to \texttt{WCSimRootTrigger}}
+
+A \texttt{WCSimRootEvent} is not itself a single PMT hit, a single particle, or
+even necessarily a single trigger. It is a container of trigger objects.\\
+The number of trigger objects stored in the current event branch is obtained with
+\begin{lstlisting}[language=python]
+event.GetNumberOfEvents()
+\end{lstlisting}
+The trigger object with index \texttt{i} is obtained with
+\begin{lstlisting}[language=python]
+trigger = event.GetTrigger(i)
+\end{lstlisting}
+The object returned by \texttt{GetTrigger(i)} is a
+\texttt{WCSimRootTrigger}.
+Therefore, the object hierarchy is
+\begin{lstlisting}
+TTree entry
+|
+`-- WCSimRootEvent
+    |
+    |-- GetNumberOfEvents()
+    |
+    `-- GetTrigger(i)
+        |
+        `-- WCSimRootTrigger
+            |
+            |-- true tracks
+            |-- true PMT hits
+            |-- true photon hit-times
+            |-- digitized PMT hits
+            `-- trigger-level information
+\end{lstlisting}
+The methods
+\begin{lstlisting}[language=python]
+GetNumberOfEvents()
+HasSubEvents()
+GetTrigger(i)
+\end{lstlisting}
+belong to the \texttt{WCSimRootEvent} object.\\
+The methods
+\begin{lstlisting}[language=python]
+GetNtrack()
+GetTracks()
+GetNcherenkovhits()
+GetCherenkovHits()
+GetNcherenkovhittimes()
+GetCherenkovHitTimes()
+GetNcherenkovdigihits()
+GetCherenkovDigiHits()
+GetTriggerType()
+GetTriggerInfo()
+\end{lstlisting}
+belong to the \texttt{WCSimRootTrigger} object.\\
+\newline
+A typical PyROOT loop is
+\begin{lstlisting}[language=python]
+event = ROOT.WCSimRootEvent()
+tree.SetBranchAddress("wcsimrootevent", event)
+
+for ientry in range(tree.GetEntries()):
+    tree.GetEntry(ientry)
+
+    ntriggers = event.GetNumberOfEvents()
+
+    for itrigger in range(ntriggers):
+        trigger = event.GetTrigger(itrigger)
+
+        print("entry:", ientry)
+        print("trigger:", itrigger)
+        print("N tracks:", trigger.GetNtrack())
+        print("N digi hits:", trigger.GetNcherenkovdigihits())
+\end{lstlisting}
+The method \texttt{event.GetTrigger(i)} can only be called on a
+\texttt{WCSimRootEvent}. The returned object is the corresponding
+\texttt{WCSimRootTrigger}.
+
+\subsection{Trigger Objects and Subevents}
+
+The quantity
+\begin{lstlisting}
+event.GetNumberOfEvents()
+\end{lstlisting}
+gives the number of \texttt{WCSimRootTrigger} objects stored inside the current
+\texttt{WCSimRootEvent}.\\
+For example,
+\begin{lstlisting}[language=python]
+event.GetNumberOfEvents() = 1
+event.HasSubEvents()      = False
+\end{lstlisting}
+means that the selected tree entry contains one trigger object in that detector
+branch.\\
+The method
+\begin{lstlisting}
+event.HasSubEvents()
+\end{lstlisting}
+is true when more than one trigger object is present.\\
+This WCSim trigger structure should not be confused with the subevent finding
+performed later by reconstruction algorithms such as fiTQun. WCSim stores
+trigger windows and digitized PMT hits according to the DAQ and trigger
+configuration. Reconstruction algorithms may later split the digitized hits into
+time subevents for fitting purposes.
+
+\subsection{The Four Main Information Levels Inside a Trigger}
+
+Inside a \texttt{WCSimRootTrigger}, the information is organized into four main
+levels:
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Level & WCSim method & Main question answered \\
+\hline
+True particles &
+\texttt{GetTracks()} &
+Which particles existed in the simulation? \\
+
+True PMT hits &
+\texttt{GetCherenkovHits()} &
+Which PMTs received true photons/PEs? \\
+
+True photon times &
+\texttt{GetCherenkovHitTimes()} &
+Which individual photons arrived, when, and from which parent? \\
+
+Digitized PMT hits &
+\texttt{GetCherenkovDigiHits()} &
+What did the simulated electronics record? \\
+\hline
+\end{tabular}
+\end{center}
+This distinction is essential. The track collection is particle-level truth
+information. The Cherenkov hit and hit-time collections are PMT-level truth
+information before digitization. The digi-hit collection is detector-level
+information after the electronics response.
+
+```latex
+\subsection{True Particle Tracks: \texttt{GetTracks()}}
+
+The true particle tracks stored in a WCSim trigger are accessed with
+\begin{lstlisting}[language=python]
+tracks = trigger.GetTracks()
+ntracks = trigger.GetNtrack()
+\end{lstlisting}
+The object \texttt{tracks} is a \texttt{TClonesArray} of
+\texttt{WCSimRootTrack} objects. Individual tracks are accessed with
+\texttt{At(i)}:
+\begin{lstlisting}[language=python]
+tracks = trigger.GetTracks()
+
+for itrack in range(trigger.GetNtrack()):
+    track = tracks.At(itrack)
+
+    ipnu = track.GetIpnu()
+    parent_type = track.GetParenttype()
+
+    track_id = track.GetId()
+    parent_id = track.GetParentId()
+    creator = track.GetCreatorProcessName()
+
+    mass = track.GetM()
+    p = track.GetP()
+    E = track.GetE()
+    K = E - mass
+
+    start = [
+        track.GetStart(0),
+        track.GetStart(1),
+        track.GetStart(2),
+    ]
+
+    stop = [
+        track.GetStop(0),
+        track.GetStop(1),
+        track.GetStop(2),
+    ]
+
+    direction = [
+        track.GetDir(0),
+        track.GetDir(1),
+        track.GetDir(2),
+    ]
+
+    time = track.GetTime()
+\end{lstlisting}
+The most useful methods are:
+\begin{itemize}
+    \item \texttt{GetIpnu()}: PDG code of the particle.
+    \item \texttt{GetId()}: unique Geant4/WCSim track ID. This is the ID to use
+    for truth matching.
+    \item \texttt{GetParentId()}: unique track ID of the parent particle.
+    \item \texttt{GetParenttype()}: PDG code of the parent particle, when WCSim
+    can identify it. A value of \texttt{0} usually indicates a primary particle,
+    while \texttt{999} means that the parent PDG code was not found by the
+    specific WCSim logic used to fill this variable.
+    \item \texttt{GetCreatorProcessName()}: Geant4 process that created the
+    track, for example \texttt{initial}, \texttt{Decay}, \texttt{compt},
+    \texttt{phot}, \texttt{conv}, etc.
+    \item \texttt{GetM()}, \texttt{GetP()}, \texttt{GetE()}: particle mass,
+    initial momentum and initial total energy, in MeV units.
+    \item \texttt{GetStart(i)} and \texttt{GetStop(i)}: start and stop positions
+    of the track, in cm.
+    \item \texttt{GetDir(i)}: initial direction unit vector.
+    \item \texttt{GetTime()}: start time of the track, in ns.
+\end{itemize}
+\textbf{Importat note: which particles are saved in \texttt{WCSim} tracks}\\
+The \texttt{GetTracks()} collection is not the full Geant4 truth history. It is a reduced list of
+\texttt{WCSimRootTrack} objects selected by WCSim. In particular, by default
+optical Cherenkov photons are not saved as entries in \texttt{GetTracks()}.
+The exception is not optical light, but Geant4 ``gamma'' particles, i.e. high
+energy photons, when they are saved by a specific part of the WCSim output
+logic.\\
+The tracks saved by WCSim include:
+\begin{itemize}
+    \item primary particles;
+    \item particles whose PDG code belongs to the WCSim tracking
+    \texttt{ParticleList}, such as \(e^-\), \(e^+\), \(\mu^-\), \(\mu^+\),
+    pions, kaons, protons and neutrons;
+    \item particles produced by selected Geant4 processes in the WCSim
+    \texttt{ProcessList}, such as decays, conversions (only $\gamma\to e^+e^-$), $\mu^-$ captures, optical wavelength shifting (optical photon absorption and re-emission of the same photon at different wavelength) and neutron captures;
+    \item particles which produced a Cherenkov photon that produced a true PMT
+    hit, together with their ancestors.
+\end{itemize}
+Therefore, the presence of a track in \texttt{GetTracks()} does not imply that
+this particle produced light observed by the PMTs. For example, in a low-energy
+positron event, the positron may annihilate after stopping:
+\[
+    e^+ + e^- \rightarrow \gamma + \gamma .
+\]
+The annihilation gammas can travel through the detector and produce secondary
+electrons by Compton scattering or photoelectric interactions. These secondary
+electrons can appear in \texttt{GetTracks()} with
+\texttt{GetCreatorProcessName()} equal to \texttt{compt} or \texttt{phot}, even
+if they are below Cherenkov threshold and produce no PMT hit. In such a case,
+\texttt{parent\_id} can point to a gamma track which was present in Geant4 but
+not saved in the \texttt{WCSimRootTrack} array. This is one common reason why
+\texttt{GetParenttype()} can be \texttt{999}.\\
+\newline
+\textbf{Last warning}: note that all the particles tracks are unique for all the event triggers, so they are stored only inside the first trigger object even if the collection contain particles whose hits are associated with a different trigger.
+
+\subsection{True PMT Hits: \texttt{GetCherenkovHits()}}
+
+The true PMT hits before digitization are accessed with
+
+\begin{lstlisting}[language=python]
+true_hits = trigger.GetCherenkovHits()
+nhits = trigger.GetNcherenkovhits()
+\end{lstlisting}
+The object \texttt{true\_hits} is a \texttt{TClonesArray} of
+\texttt{WCSimRootCherenkovHit} objects.\\
+A \texttt{WCSimRootCherenkovHit} is not a single photon. It is a record
+associated with one PMT that received at least one true photon or photoelectron
+before digitization.\\
+For each \texttt{WCSimRootCherenkovHit}, the important methods are
+
+\begin{lstlisting}[language=python]
+hit.GetTubeID()
+hit.GetTotalPe(0)
+hit.GetTotalPe(1)
+\end{lstlisting}
+Their meaning is:
+
+\begin{itemize}
+    \item \texttt{GetTubeID()} gives the PMT tube ID.
+    \item \texttt{GetTotalPe(0)} gives the starting position, inside the
+    trigger-wide array returned by \texttt{GetCherenkovHitTimes()}, of the
+    individual true photon hits associated with this PMT.
+    \item \texttt{GetTotalPe(1)} gives the number of individual true photons/PEs
+    associated with this PMT.
+\end{itemize}
+Thus, \texttt{GetCherenkovHits()} gives the list of PMTs that were hit, while
+\texttt{GetCherenkovHitTimes()} gives the detailed list of the individual true
+photons/PEs.\\
+\newline
+A typical loop starts as
+\begin{lstlisting}[language=python]
+true_hits = trigger.GetCherenkovHits()
+
+for ihit in range(trigger.GetNcherenkovhits()):
+    hit = true_hits.At(ihit)
+
+    tube_id = hit.GetTubeID()
+    first_index = hit.GetTotalPe(0)
+    n_photons = hit.GetTotalPe(1)
+\end{lstlisting}
+At this stage, \texttt{hit} identifies the PMT and tells where to find the
+individual photons associated with that PMT.
+
+\subsection{True Photon Hit-Times: \texttt{GetCherenkovHitTimes()}}
+
+The individual true photon or photoelectron entries are stored in
+
+\begin{lstlisting}[language=python]
+true_times = trigger.GetCherenkovHitTimes()
+ntimes = trigger.GetNcherenkovhittimes()
+\end{lstlisting}
+The object \texttt{true\_times} is a \texttt{TClonesArray} of
+\texttt{WCSimRootCherenkovHitTime} objects.
+Unlike \texttt{WCSimRootCherenkovHit}, which is PMT-level, a
+\texttt{WCSimRootCherenkovHitTime} is photon-level or photoelectron-level truth
+information. It stores information about one individual true hit contribution.\\
+Important methods are
+\begin{lstlisting}[language=python]
+hit_time.GetTruetime()
+hit_time.GetParentID()
+\end{lstlisting}
+where
+
+\begin{itemize}
+    \item \texttt{GetTruetime()} gives the true arrival time of that photon/PE;
+    \item \texttt{GetParentID()} gives the identifier of the true parent particle
+    that produced that photon/PE.
+\end{itemize}
+The relation between \texttt{CherenkovHits} and \texttt{CherenkovHitTimes} is
+therefore
+\begin{itemize}
+\item \texttt{trigger.GetCherenkovHits()}: list of PMTs with true hits
+\item \texttt{trigger.GetCherenkovHitTimes()}:
+one trigger-wide list of all individual true photons/PEs
+\end{itemize}
+The word ``trigger-wide'' means that there is one common
+\texttt{CherenkovHitTimes} array for the whole \texttt{WCSimRootTrigger}, not a
+separate array for each PMT.\\
+For example, suppose the true photons in a trigger are
+\begin{lstlisting}
+PMT 10 receives 2 true photons
+PMT 25 receives 1 true photon
+PMT 80 receives 3 true photons
+\end{lstlisting}
+WCSim stores the PMT-level objects as
+
+\begin{lstlisting}
+CherenkovHits:
+  hit 0 -> PMT 10, first_index = 0, n_photons = 2
+  hit 1 -> PMT 25, first_index = 2, n_photons = 1
+  hit 2 -> PMT 80, first_index = 3, n_photons = 3
+\end{lstlisting}
+and the individual photon-level objects as one trigger-wide array:
+
+\begin{lstlisting}
+CherenkovHitTimes:
+  index 0 -> photon on PMT 10
+  index 1 -> photon on PMT 10
+  index 2 -> photon on PMT 25
+  index 3 -> photon on PMT 80
+  index 4 -> photon on PMT 80
+  index 5 -> photon on PMT 80
+\end{lstlisting}
+Therefore, if
+\begin{lstlisting}
+hit.GetTubeID()    = 80
+hit.GetTotalPe(0) = 3
+hit.GetTotalPe(1) = 3
+\end{lstlisting}
+then PMT 80 has three true photons, stored in \texttt{CherenkovHitTimes} at
+indices 3, 4 and 5.\\
+\newline
+A complete PMT-to-photon loop is
+
+\begin{lstlisting}[language=python]
+true_hits = trigger.GetCherenkovHits()
+true_times = trigger.GetCherenkovHitTimes()
+
+for ihit in range(trigger.GetNcherenkovhits()):
+    hit = true_hits.At(ihit)
+
+    tube_id = hit.GetTubeID()
+    first_index = hit.GetTotalPe(0)
+    n_photons = hit.GetTotalPe(1)
+
+    print("PMT:", tube_id)
+    print("Number of true photons:", n_photons)
+
+    for k in range(n_photons):
+        hit_time = true_times.At(first_index + k)
+
+        true_time = hit_time.GetTruetime()
+        parent_id = hit_time.GetParentID()
+
+        print("  photon:", k)
+        print("    true time:", true_time)
+        print("    parent ID:", parent_id)
+\end{lstlisting}
+This loop answers the question:
+
+\begin{center}
+\emph{For each PMT, which individual true photons arrived, at what time, and
+from which true particle?}
+\end{center}
+
+\subsection{Parent ID and Connection to True Particles}
+
+The method
+
+\begin{lstlisting}
+hit_time.GetParentID()
+\end{lstlisting}
+is the key method for tracing PMT light back to the particle that produced it.
+It gives the identifier of the true parent particle associated with the
+individual photon/PE.\\
+The conceptual chain is
+\begin{lstlisting}
+PMT-level true hit
+|
+|-- hit.GetTubeID()
+|       -> which PMT was hit
+|
+|-- hit.GetTotalPe(0), hit.GetTotalPe(1)
+|       -> where the photons of this PMT are stored
+|
+v
+photon-level true hit-time
+|
+|-- hit_time.GetTruetime()
+|       -> when this photon arrived
+|
+`-- hit_time.GetParentID()
+        -> which true particle produced this photon
+\end{lstlisting}
+In a muon plus Michel electron event, this is the information needed to ask
+whether a PMT received light from the muon, from the decay electron, or from
+both.\\
+The track collection and the hit-time collection play different roles:
+
+\begin{itemize}
+    \item \texttt{GetTracks()} gives the true particles and their kinematics.
+    \item \texttt{GetCherenkovHitTimes()} gives the true photon-level
+    contributions and their parent IDs.
+\end{itemize}
+Therefore, the tracks identify the particles, while the hit-times identify which
+particle contributed light to each PMT.
+
+\subsection{Digitized PMT Hits: \texttt{GetCherenkovDigiHits()}}
+
+The previous collections describe truth-level information before digitization.
+The digitized detector response is accessed with
+
+\begin{lstlisting}
+digi_hits = trigger.GetCherenkovDigiHits()
+ndigi = trigger.GetNcherenkovdigihits()
+\end{lstlisting}
+The object \texttt{digi\_hits} is a \texttt{TClonesArray} of
+\texttt{WCSimRootCherenkovDigiHit} objects.\\
+A digitized hit is the PMT signal after the WCSim electronics and digitization
+stage. The most important methods are
+\begin{lstlisting}
+digi_hit.GetTubeId()
+digi_hit.GetQ()
+digi_hit.GetT()
+\end{lstlisting}
+where
+\begin{itemize}
+    \item \texttt{GetTubeId()} gives the digitized PMT ID;
+    \item \texttt{GetQ()} gives the digitized charge;
+    \item \texttt{GetT()} gives the digitized time.
+\end{itemize}
+The digitized collection answers the question:
+
+\begin{center}
+\emph{What did the simulated electronics record for each PMT?}
+\end{center}
+This is the collection most directly related to trigger studies and to
+reconstruction algorithms.\\
+The distinction between
+\begin{lstlisting}
+trigger.GetNcherenkovdigihits()
+trigger.GetNumDigiTubesHit()
+\end{lstlisting}
+is the following:
+\begin{itemize}
+    \item \texttt{GetNcherenkovdigihits()} counts the number of digitized hit
+    objects stored in the trigger.
+    \item \texttt{GetNumDigiTubesHit()} counts the number of PMT tubes with at
+    least one digitized hit.
+\end{itemize}
+If
+\begin{lstlisting}
+GetNcherenkovdigihits() = 208
+GetNumDigiTubesHit()   = 208
+\end{lstlisting}
+then the trigger contains one digitized hit per digitized PMT. If multiple digitized hits per PMT per trigger were stored, one could instead have
+\begin{lstlisting}
+GetNcherenkovdigihits() > GetNumDigiTubesHit()
+\end{lstlisting}
+
+\subsection{From a Digitized Hit Back to True Photons}
+
+A digitized hit does not by itself directly say ``this signal came from the
+muon'' or ``this signal came from the Michel electron''. It gives the detector
+response: PMT ID, charge and time.\\
+However, WCSim can store the connection between a digitized hit and the true
+photons that contributed to it. This connection is accessed through
+\begin{lstlisting}
+digi_hit.GetPhotonIds()
+\end{lstlisting}
+The method \texttt{GetPhotonIds()} returns indices in the trigger-wide
+\texttt{CherenkovHitTimes} array. These indices point to the individual true
+photon/PE entries that contributed to the digitized hit.\\
+The full chain is
+
+\begin{lstlisting}
+WCSimRootCherenkovDigiHit
+|
+|-- GetTubeId()
+|       -> digitized PMT ID
+|
+|-- GetQ()
+|       -> digitized charge
+|
+|-- GetT()
+|       -> digitized time
+|
+`-- GetPhotonIds()
+        -> indices in CherenkovHitTimes
+             |
+             v
+        WCSimRootCherenkovHitTime
+             |
+             |-- GetTruetime()
+             `-- GetParentID()
+                    |
+                    v
+              true parent particle
+\end{lstlisting}
+A conceptual PyROOT loop is
+
+\begin{lstlisting}[language=python]
+from collections import Counter
+
+true_times = trigger.GetCherenkovHitTimes()
+digi_hits = trigger.GetCherenkovDigiHits()
+
+for idigi in range(trigger.GetNcherenkovdigihits()):
+    digi_hit = digi_hits.At(idigi)
+
+    tube_id = digi_hit.GetTubeId()
+    q = digi_hit.GetQ()
+    t = digi_hit.GetT()
+
+    photon_ids = digi_hit.GetPhotonIds()
+
+    parent_counter = Counter()
+
+    for j in range(photon_ids.size()):
+        hit_time_index = photon_ids[j]
+        hit_time = true_times.At(hit_time_index)
+
+        parent_id = hit_time.GetParentID()
+        parent_counter[parent_id] += 1
+
+    print("digitized PMT:", tube_id)
+    print("digitized charge:", q)
+    print("digitized time:", t)
+    print("true parent contributions:", parent_counter)
+\end{lstlisting}
+This loop answers the question:
+
+\begin{center}
+\emph{For this digitized PMT hit, which true photons contributed to it, and from
+which true particles did they originate?}
+\end{center}
+This is especially useful when a PMT receives light from more than one particle.
+For example, in a muon plus Michel electron event, a digitized PMT hit may
+contain contributions from both the primary muon and the decay electron. The
+digitized charge is then a detector-level mixture of the two truth-level light
+contributions.
+
+\subsection{Example: Interpreting Raw and Digitized Counts}
+
+Consider the following output:
+
+\begin{lstlisting}[language=python]
+event.GetNumberOfEvents() = 1
+event.HasSubEvents()      = False
+
+Trigger object 0
+  GetNtrack()                  = 44
+  GetNcherenkovhits()          = 532
+  GetNcherenkovhittimes()      = 540
+  GetNumTubesHit()             = 532
+  GetNcherenkovdigihits()      = 208
+  GetNumDigiTubesHit()         = 208
+  GetTriggerType()             = 0
+  GetTriggerInfo().size()      = 3
+
+TriggerInfo values:
+  [0] = 43.0
+  [1] = 950.0
+  [2] = 160.5
+\end{lstlisting}
+The interpretation is:
+
+\begin{itemize}
+    \item The \texttt{WCSimRootEvent} contains one trigger object.
+    \item \texttt{HasSubEvents()} is false because there is not more than one
+    trigger object in the event branch.
+    \item The trigger contains 44 true tracks.
+    \item There are 532 PMTs/tubes with true hits before digitization.
+    \item There are 540 individual true hit-time entries. Since this is larger
+    than 532, at least some PMTs received more than one true photon/PE.
+    \item There are 208 digitized hit objects after the electronics response.
+    \item There are also 208 digitized PMTs, so in this trigger there is one
+    digitized hit per digitized PMT.
+\end{itemize}
+Physically, the event contains more true PMT activity than digitized PMT
+activity. This is expected. Not every true photon-level contribution survives the
+detector response, thresholding, electronics simulation and trigger-window
+selection.
+
+\subsection{Failed or Dummy Trigger Objects}
+
+The presence of a \texttt{WCSimRootTrigger} object does not always guarantee that
+the event contains useful digitized Cherenkov light. Depending on the WCSim
+configuration, trigger failures or dummy trigger objects may be saved. Such
+objects can have little or no digitized activity.\\
+For this reason, an analysis should not rely only on the existence of a trigger
+object. It should also check quantities such as
+
+\begin{lstlisting}[language=python]
+trigger.GetTriggerType()
+trigger.GetNcherenkovdigihits()
+trigger.GetNumDigiTubesHit()
+trigger.GetSumQ()
+\end{lstlisting}
+A practical filter is
+\begin{lstlisting}[language=python]
+if trigger.GetNcherenkovdigihits() == 0:
+    continue
+
+if trigger.GetNumDigiTubesHit() == 0:
+    continue
+\end{lstlisting}
+and, when necessary, an additional selection on \texttt{GetTriggerType()} should
+be applied according to the trigger configuration used in the WCSim macro.
+
+\subsection{Practical Summary}
+
+The object hierarchy can be summarized as follows:
+
+\begin{lstlisting}
+ROOT file
+|
+`-- wcsimT
+    |
+    `-- tree entry
+        |
+        `-- WCSimRootEvent
+            |
+            `-- WCSimRootTrigger
+                |
+                |-- GetTracks()
+                |     -> true particles
+                |
+                |-- GetCherenkovHits()
+                |     -> PMTs with true hits before digitization
+                |
+                |-- GetCherenkovHitTimes()
+                |     -> individual true photons/PEs,
+                |        with true time and parent ID
+                |
+                `-- GetCherenkovDigiHits()
+                      -> digitized PMT signals,
+                         with charge and time
+\end{lstlisting}
+The most important conceptual distinctions are:
+
+\begin{itemize}
+    \item A \texttt{WCSimRootEvent} is read from a branch of \texttt{wcsimT}.
+    \item A \texttt{WCSimRootTrigger} is obtained from a
+    \texttt{WCSimRootEvent} using \texttt{GetTrigger(i)}.
+    \item A \texttt{WCSimRootTrack} describes a true simulated particle.
+    \item A \texttt{WCSimRootCherenkovHit} describes one PMT that received true
+    light before digitization.
+    \item A \texttt{WCSimRootCherenkovHitTime} describes one individual true
+    photon/PE contribution and stores its parent ID.
+    \item A \texttt{WCSimRootCherenkovDigiHit} describes the digitized signal
+    recorded by the simulated electronics.
+\end{itemize}
+Therefore, to identify the true particles in the event, one uses
+
+\begin{lstlisting}
+trigger.GetTracks()
+\end{lstlisting}
+To know which PMTs received true light from which particles, one uses
+
+\begin{lstlisting}
+trigger.GetCherenkovHits()
+trigger.GetCherenkovHitTimes()
+hit_time.GetParentID()
+\end{lstlisting}
+To know which true photons contributed to a digitized PMT hit, one uses
+
+\begin{lstlisting}
+trigger.GetCherenkovDigiHits()
+digi_hit.GetPhotonIds()
+trigger.GetCherenkovHitTimes()
+hit_time.GetParentID()
+\end{lstlisting}
+In a muon plus Michel electron event, this is the complete truth chain needed to
+separate the PMT light contribution of the primary muon from that of the decay
+electron.
+
+
+\newpage
 
 \appendix
 \section{Docker file \texttt{fiTQun.def}}
