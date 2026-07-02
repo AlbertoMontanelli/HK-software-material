@@ -120,7 +120,11 @@ def main(path, event_index=None, full_tracks=False):
 
         print("\nTrue tracks information from trigger 0:")
         for i, dict_track in enumerate(tracks):
-            if full_tracks or dict_track["parent_type"] in (0, -13):
+            if full_tracks or (
+                (abs(dict_track["parent_type"]) in (0, 13))
+                and dict_track["creator"] in ("initial", "Decay")
+                and (dict_track["creator"] != "initial" or dict_track["M"] > 0)
+            ):
                 print_track_info(dict_track, i)
 
         print("=" * 80)

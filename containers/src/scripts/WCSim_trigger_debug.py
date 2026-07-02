@@ -58,14 +58,22 @@ def main(input_file, show_methods=False, event_idx=-1):
     printed_methods = False
     N_MULTIPLE_TRIGGERS = 0
     N_SINGLE_TRIGGERS = 0
+    N_DOUBLE_TRIGGERS = 0
 
     for event_index in n_entries:
         wcsim_tree.GetEntry(event_index)
 
         n_wcsim_objects = int(event.GetNumberOfEvents())
         has_subevents = bool(event.HasSubEvents())
-        if n_wcsim_objects >= 1 and has_subevents:
+        if n_wcsim_objects == 2 and has_subevents:
             print(f"Warning: Event {event_index} has {n_wcsim_objects} triggers")
+            N_DOUBLE_TRIGGERS += 1
+        elif n_wcsim_objects > 2:
+            print()
+            print("=" * 80)
+            print(f"WARNING: Event {event_index} has {n_wcsim_objects} triggers")
+            print("=" * 80)
+            print()
             N_MULTIPLE_TRIGGERS += 1
         else:
             N_SINGLE_TRIGGERS += 1
@@ -85,8 +93,10 @@ def main(input_file, show_methods=False, event_idx=-1):
 
         event.ReInitialize()
 
-    print(f"Events with multiple triggers: {N_MULTIPLE_TRIGGERS}/{len(n_entries)}")
+    print(f"Events with double triggers: {N_DOUBLE_TRIGGERS}/{len(n_entries)}")
     print(f"Events with single triggers: {N_SINGLE_TRIGGERS}/{len(n_entries)}")
+    if N_MULTIPLE_TRIGGERS > 0:
+        print(f"Events with multiple triggers: {N_MULTIPLE_TRIGGERS}/{len(n_entries)}")
     root_file.Close()
 
 

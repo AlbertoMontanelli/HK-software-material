@@ -29,7 +29,7 @@
 
 # default dark noise frequency (and conversion factor) is PMT property (NEW), set in the code.
 # Below gives possibility to overwrite nominal values, eg. to switch OFF the Dark Noise.
-/DarkRate/SetDarkRate 0 kHz   #Turn dark noise off
+#/DarkRate/SetDarkRate 0 kHz   #Turn dark noise off
 #/DarkRate/SetDarkRate 4.2 kHz #This is the value for SKI set in SKDETSIM.
 #/DarkRate/SetDarkRate 8.4 kHz #For 20 inch HPDs and Box and Line PMTs, based on High QE 20 inch R3600 dark rate from EGADS nov 2014
 #/DarkRate/SetDarkRate 3.0 kHz #For 12 inch HPDs and Box and Line PMTs, based on High QE 20 inch R3600 dark rate from EGADS nov 2014
@@ -54,7 +54,7 @@
 
 
 ## change the name of the output root file, default = wcsim.root
-/WCSimIO/RootFile /output_data/positron_michel_seed1_nodarkrate.root
+/WCSimIO/RootFile /output_data/positron_michel_seed1_DarkRateOn.root
 
 /gun/energy 0.3 MeV
 /run/beamOn 1000

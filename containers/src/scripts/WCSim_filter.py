@@ -3,7 +3,6 @@
 import argparse
 
 import numpy as np
-
 import ROOT  # type: ignore
 
 
@@ -20,7 +19,8 @@ def load_wcsim_library():
             "Could not load libWCSimRoot.so. "
             "Make sure you sourced the WCSim environment inside the container."
         )
-    
+
+
 def load_trees(input_file):
     """
     Load WCSim trees from a ROOT file.
@@ -39,6 +39,7 @@ def copy_tree(input_file, output_file, tree_name: str) -> None:
     tree = input_file.Get(tree_name)
     output_file.cd()
     tree.CloneTree(-1, "fast").Write()
+
 
 def filter_tracks(trigger):
     """
@@ -74,14 +75,21 @@ def filter_tracks(trigger):
                     float(trk.GetStop(2)),
                 ]
             )
-        if abs(ipnu) == 11 and abs(parent_type) == 13 and start.all()==stop_muon.all():
+        if (
+            abs(ipnu) == 11
+            and abs(parent_type) == 13
+            and start.all() == stop_muon.all()
+        ):
             find_electron = True
     return find_muon, find_electron
+
 
 def main(input_file):
     load_wcsim_library()
     wcsim_tree, input_root = load_trees(input_file)
-    output_root = ROOT.TFile.Open(str(input_file).replace(".root", "_filtered.root"), "RECREATE")
+    output_root = ROOT.TFile.Open(
+        str(input_file).replace(".root", "_filtered.root"), "RECREATE"
+    )
 
     # Copy geometry/options trees.
     for aux_tree_name in [
@@ -122,8 +130,15 @@ def main(input_file):
                 else:
                     output_tree.Fill()
                     selected_indices.append(i_entry)
-        else:
+        elif n_triggers == 2:
             print(f"Event {i_entry + 1} rejected: {n_triggers} triggers.\n")
+        else:
+            print("=" * 80)
+            print(
+                f"WARNING: Event {i_entry + 1} has {n_triggers} triggers, skipping.\n"
+            )
+            print("=" * 80)
+
     output_tree.Write()
     output_root.Close()
     input_root.Close()

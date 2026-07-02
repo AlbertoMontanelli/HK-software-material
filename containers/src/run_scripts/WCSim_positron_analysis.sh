@@ -8,5 +8,5 @@ apptainer exec \
     --bind "$(pwd)/src/scripts":/scripts \
     --bind "$(pwd)/plots":/plots \
     "$(pwd)/WCSimRootPyROOT.sif" \
-    python /scripts/WCSim_positron_summary.py \
+    python /scripts/WCSim_positron_analysis.py \
     "/WCSim_data/${INPUT_FILE}" 
