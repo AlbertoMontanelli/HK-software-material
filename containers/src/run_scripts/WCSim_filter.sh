@@ -7,12 +7,10 @@
 # 'data/WCSim_data/' directory.
 
 INPUT_FILE="$1"
-OUTPUT_FILE="$2"
 
 apptainer exec \
     --bind "$(pwd)/data/WCSim_data":/WCSim_data \
     --bind "$(pwd)/src/scripts":/scripts \
     "$(pwd)/WCSimRootPyROOT.sif" \
     python /scripts/WCSim_filter.py \
-        "/WCSim_data/${INPUT_FILE}" \
-        "/WCSim_data/${OUTPUT_FILE}"
+        "/WCSim_data/${INPUT_FILE}"
