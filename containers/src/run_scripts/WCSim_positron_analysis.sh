@@ -1,7 +1,7 @@
 #!/bin/bash
 
 INPUT_FILE="$1"
-
+shift
 
 apptainer exec \
     --bind "$(pwd)/data/WCSim_data":/WCSim_data \
@@ -9,4 +9,5 @@ apptainer exec \
     --bind "$(pwd)/plots":/plots \
     "$(pwd)/WCSimRootPyROOT.sif" \
     python /scripts/WCSim_positron_analysis.py \
-    "/WCSim_data/${INPUT_FILE}" 
+    --summary_root_file "/WCSim_data/${INPUT_FILE}" \
+    "$@"
