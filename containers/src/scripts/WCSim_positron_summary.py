@@ -198,7 +198,12 @@ def fill_geometry_tree(input_root_file, output_root_file):
     Copy PMT geometry into a compact Geometry tree.
 
     One entry, with vectors:
-        tube_id, x, y, z
+        tube_id, x, y, z, cyl_loc
+
+    WCSim convention:
+        cyl_loc = 0: top cap
+        cyl_loc = 1: barrel wall
+        cyl_loc = 2: bottom cap
     """
 
     geo_tree_in = input_root_file.Get("wcsimGeoT")
@@ -214,11 +219,13 @@ def fill_geometry_tree(input_root_file, output_root_file):
     geo_tree = ROOT.TTree("Geometry", "Compact PMT geometry")
 
     tube_id_vec = ROOT.std.vector("int")()
+    cyl_loc_vec = ROOT.std.vector("int")()
     x_vec = ROOT.std.vector("float")()
     y_vec = ROOT.std.vector("float")()
     z_vec = ROOT.std.vector("float")()
 
     geo_tree.Branch("tube_id", tube_id_vec)
+    geo_tree.Branch("cyl_loc", cyl_loc_vec)
     geo_tree.Branch("x", x_vec)
     geo_tree.Branch("y", y_vec)
     geo_tree.Branch("z", z_vec)
@@ -229,6 +236,7 @@ def fill_geometry_tree(input_root_file, output_root_file):
         pmt = geom.GetPMT(i)
 
         tube_id_vec.push_back(int(pmt.GetTubeNo()))
+        cyl_loc_vec.push_back(int(pmt.GetCylLoc()))
         x_vec.push_back(float(pmt.GetPosition(0)))
         y_vec.push_back(float(pmt.GetPosition(1)))
         z_vec.push_back(float(pmt.GetPosition(2)))

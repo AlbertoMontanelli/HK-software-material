@@ -32,14 +32,53 @@ def sanitize_label(label):
     return str(label).replace(".", "p").replace("-", "m").replace("+", "p")
 
 
+def energy_display_label(energy_MeV):
+    """
+    Human-readable energy label.
+
+    Examples:
+        0.3  -> '0.3 MeV'
+        1.0  -> '1 MeV'
+        10.0 -> '10 MeV'
+    """
+    energy = float(energy_MeV)
+
+    if np.isclose(energy, round(energy)):
+        return f"{int(round(energy))} MeV"
+
+    return f"{energy:g} MeV"
+
+
+def energy_file_label(energy_MeV):
+    """
+    File/directory-safe energy label.
+
+    Examples:
+        0.3  -> '0p300MeV'
+        1.0  -> '1MeV'
+        10.0 -> '10MeV'
+    """
+    energy = float(energy_MeV)
+
+    if np.isclose(energy, round(energy)):
+        return f"{int(round(energy))}MeV"
+
+    return f"{energy:.3f}MeV".replace(".", "p")
+
+
 def load_geometry(root_file):
     """
     Read compact Geometry tree.
 
     Returns
     -------
-    pmt_pos_by_tube : dict
-        tube_id -> np.array([x, y, z])
+    pmt_map : dict
+        tube_id -> {
+            "x": x,
+            "y": y,
+            "z": z,
+            "cyl_loc": cyl_loc,
+        }
     """
 
     geo_tree = root_file.Get("Geometry")
@@ -51,20 +90,31 @@ def load_geometry(root_file):
 
     geo_tree.GetEntry(0)
 
-    pmt_pos_by_tube = {}
+    pmt_map = {}
 
     tube_ids = list(geo_tree.tube_id)
     xs = list(geo_tree.x)
     ys = list(geo_tree.y)
     zs = list(geo_tree.z)
 
-    for tube_id, x, y, z in zip(tube_ids, xs, ys, zs):
-        pmt_pos_by_tube[int(tube_id)] = np.array(
-            [float(x), float(y), float(z)],
-            dtype=float,
+    if hasattr(geo_tree, "cyl_loc"):
+        cyl_locs = list(geo_tree.cyl_loc)
+    else:
+        raise RuntimeError(
+            "Geometry tree has no branch 'cyl_loc'. "
+            "Regenerate the summary ROOT file with the updated "
+            "WCSim_positron_summary.py."
         )
 
-    return pmt_pos_by_tube
+    for tube_id, x, y, z, cyl_loc in zip(tube_ids, xs, ys, zs, cyl_locs):
+        pmt_map[int(tube_id)] = {
+            "x": float(x),
+            "y": float(y),
+            "z": float(z),
+            "cyl_loc": int(cyl_loc),
+        }
+
+    return pmt_map
 
 
 def build_event_rows(event_tree):
@@ -108,7 +158,16 @@ def build_event_rows(event_tree):
             dtype=float,
         )
 
+        min_time = float(event_tree.min_time)
+        max_time = float(event_tree.max_time)
+
+        if np.isfinite(min_time) and np.isfinite(max_time):
+            time_span = max_time - min_time
+        else:
+            time_span = np.nan
+
         row = {
+            "tree_entry": int(tree_entry),
             "entry_index": int(event_tree.entry_index),
             "energy_MeV": float(event_tree.energy_MeV),
             "track_length_cm": float(event_tree.track_length_cm),
@@ -119,8 +178,9 @@ def build_event_rows(event_tree):
             "n_digi_tubes_hit_sum": int(event_tree.n_digi_tubes_hit_sum),
             "n_digi_tubes_hit_merged": int(event_tree.n_digi_tubes_hit_merged),
             "tot_charge": float(event_tree.tot_charge),
-            "min_time": float(event_tree.min_time),
-            "max_time": float(event_tree.max_time),
+            "min_time": float(min_time),
+            "max_time": float(max_time),
+            "time_span": time_span,
             "true_start": true_start,
             "true_stop": true_stop,
             "true_dir": true_dir,
@@ -138,16 +198,14 @@ def build_event_rows(event_tree):
     return rows
 
 
-def choose_bins(values, key):
-    """
-    Choose reasonable histogram bins.
-
-    Integer count variables get integer-centered bins.
-    Continuous variables use Freedman-Diaconis when possible.
-    """
+def save_histogram(rows, key, xlabel, title, output_path):
+    values = np.array(
+        [row[key] for row in rows if np.isfinite(row[key])],
+        dtype=float,
+    )
 
     if len(values) == 0:
-        return 40
+        return False
 
     integer_keys = {
         "n_triggers",
@@ -158,30 +216,29 @@ def choose_bins(values, key):
         "n_digi_tubes_hit_merged",
     }
 
-    if key in integer_keys:
-        vmin = int(np.min(values))
-        vmax = int(np.max(values))
-
-        return np.arange(vmin - 0.5, vmax + 1.5, 1.0).tolist()
-
-    if len(values) < 2:
-        return 10
-
-    return "fd"
-
-
-def save_histogram(rows, key, xlabel, title, output_path):
-    values = [row[key] for row in rows if np.isfinite(row[key])]
-
-    if len(values) == 0:
-        return False
-
-    bins = choose_bins(values, key)
-
     plt.figure(figsize=(8, 6))
-    plt.hist(values, bins=bins, histtype="step", linewidth=1.8)
+
+    if key in integer_keys:
+        values_int = values.astype(int)
+
+        unique_values, counts = np.unique(values_int, return_counts=True)
+
+        plt.bar(
+            unique_values,
+            counts,
+            width=1.0,
+            align="center",
+            edgecolor="black",
+            linewidth=0.5,
+        )
+
+        plt.ylabel("Events", fontsize=14)
+
+    else:
+        plt.hist(values, bins="fd", histtype="step", linewidth=1.8)
+        plt.ylabel("Events", fontsize=14)
+
     plt.xlabel(xlabel, fontsize=14)
-    plt.ylabel("Events", fontsize=14)
     plt.title(title, fontsize=14)
     plt.grid(alpha=0.3)
     plt.tight_layout()
@@ -197,17 +254,15 @@ def save_histograms_for_energy(rows, energy_label, output_dir):
         ("track_length_cm", "positron track length [cm]"),
         ("n_raw_hits", "number of raw Cherenkov hits"),
         ("n_digi_hits", "number of digitized hits"),
-        ("min_time", "minimum digitized hit time [ns]"),
-        ("max_time", "maximum digitized hit time [ns]"),
+        ("time_span", r"$t_{\max} - t_{\min}$ [ns]"),
         ("n_raw_tubes_hit_sum", "number of raw tubes hit, trigger-summed"),
         ("n_digi_tubes_hit_sum", "number of digitized tubes hit, trigger-summed"),
         ("n_digi_tubes_hit_merged", "number of digitized tubes hit, merged"),
         ("tot_charge", "total collected charge [p.e.]"),
-        ("n_triggers", "number of WCSim trigger objects"),
     ]
 
     for key, xlabel in variables:
-        output_path = output_dir / f"{key}.pdf"
+        output_path = output_dir / f"{key}.png"
         title = f"{energy_label}: {xlabel}"
         save_histogram(rows, key, xlabel, title, output_path)
 
@@ -304,97 +359,324 @@ def read_hit_map_for_row(hit_tree, row):
     return tube_ids, charges, times
 
 
-def save_3d_display(row, hit_tree, pmt_pos_by_tube, output_path):
+def add_direction_arrow_3d(
+    fig, start, direction, detector_scale, name="true positron direction"
+):
+    """
+    Add a visible direction arrow to a Plotly 3D figure.
+
+    The arrow length is display-oriented, not the true physical track length.
+    """
+
+    start = np.asarray(start, dtype=float)
+    direction = np.asarray(direction, dtype=float)
+
+    norm = np.linalg.norm(direction)
+    if (
+        norm <= 0
+        or not np.all(np.isfinite(start))
+        or not np.all(np.isfinite(direction))
+    ):
+        return
+
+    direction = direction / norm
+
+    arrow_length = 0.25 * detector_scale
+    end = start + arrow_length * direction
+
+    fig.add_trace(
+        go.Scatter3d(
+            x=[start[0], end[0]],
+            y=[start[1], end[1]],
+            z=[start[2], end[2]],
+            mode="lines",
+            line=dict(width=4),
+            name=name,
+        )
+    )
+
+    # Cone tip.
+    fig.add_trace(
+        go.Cone(
+            x=[end[0]],
+            y=[end[1]],
+            z=[end[2]],
+            u=[direction[0]],
+            v=[direction[1]],
+            w=[direction[2]],
+            sizemode="absolute",
+            sizeref=0.05 * detector_scale,
+            anchor="tip",
+            showscale=False,
+            name="arrow head",
+        )
+    )
+
+    # Start point.
+    fig.add_trace(
+        go.Scatter3d(
+            x=[start[0]],
+            y=[start[1]],
+            z=[start[2]],
+            mode="markers",
+            marker=dict(size=4),
+            name="true start vertex",
+        )
+    )
+
+
+def save_3d_display(row, hit_tree, pmt_map, output_path):
+    """
+    Save an interactive 3D Plotly event display.
+
+    All PMTs are shown as a faint detector outline.
+    Hit PMTs are colored by merged digitized charge.
+    The true positron direction is shown as a display-scaled arrow.
+    """
+
     tube_ids, charges, times = read_hit_map_for_row(hit_tree, row)
 
     if len(tube_ids) == 0:
         return False
 
-    xs = []
-    ys = []
-    zs = []
-    qs = []
-    texts = []
+    charge_by_tube = {
+        int(tube_id): float(charge) for tube_id, charge in zip(tube_ids, charges)
+    }
 
-    for tube_id, charge, time in zip(tube_ids, charges, times):
-        tube_id = int(tube_id)
+    time_by_tube = {int(tube_id): float(time) for tube_id, time in zip(tube_ids, times)}
 
-        if tube_id not in pmt_pos_by_tube:
-            continue
+    all_x, all_y, all_z = [], [], []
+    hit_x, hit_y, hit_z, hit_q, hit_text = [], [], [], [], []
 
-        pos = pmt_pos_by_tube[tube_id]
+    for tube_id, pmt in pmt_map.items():
+        x = float(pmt["x"])
+        y = float(pmt["y"])
+        z = float(pmt["z"])
 
-        xs.append(pos[0])
-        ys.append(pos[1])
-        zs.append(pos[2])
-        qs.append(float(charge))
-        texts.append(
-            f"tube={tube_id}<br>q={float(charge):.3f} p.e.<br>t={float(time):.3f} ns"
-        )
+        all_x.append(x)
+        all_y.append(y)
+        all_z.append(z)
 
-    if len(xs) == 0:
+        if tube_id in charge_by_tube:
+            q = charge_by_tube[tube_id]
+            t = time_by_tube[tube_id]
+
+            hit_x.append(x)
+            hit_y.append(y)
+            hit_z.append(z)
+            hit_q.append(q)
+
+            hit_text.append(f"tube={tube_id}<br>q={q:.3f} p.e.<br>t={t:.3f} ns")
+
+    all_x = np.asarray(all_x, dtype=float)
+    all_y = np.asarray(all_y, dtype=float)
+    all_z = np.asarray(all_z, dtype=float)
+
+    hit_x = np.asarray(hit_x, dtype=float)
+    hit_y = np.asarray(hit_y, dtype=float)
+    hit_z = np.asarray(hit_z, dtype=float)
+    hit_q = np.asarray(hit_q, dtype=float)
+
+    if len(hit_q) == 0:
         return False
+
+    detector_scale = float(
+        max(
+            np.max(all_x) - np.min(all_x),
+            np.max(all_y) - np.min(all_y),
+            np.max(all_z) - np.min(all_z),
+        )
+    )
 
     fig = go.Figure()
 
+    # ---------- All PMTs: faint detector outline ----------
     fig.add_trace(
         go.Scatter3d(
-            x=xs,
-            y=ys,
-            z=zs,
+            x=all_x,
+            y=all_y,
+            z=all_z,
             mode="markers",
+            name="all PMTs",
             marker=dict(
-                size=4,
-                color=qs,
-                colorscale="Viridis",
-                colorbar=dict(title="charge [p.e.]"),
-                opacity=0.9,
+                size=2,
+                color="lightgray",
+                opacity=0.15,
             ),
-            text=texts,
-            name="hit PMTs",
+            hoverinfo="skip",
+            showlegend=True,
         )
     )
 
-    start = row["true_start"]
-    stop = row["true_stop"]
+    # ---------- Hit PMTs ----------
+    fig.add_trace(
+        go.Scatter3d(
+            x=hit_x,
+            y=hit_y,
+            z=hit_z,
+            mode="markers",
+            name="hit PMTs",
+            marker=dict(
+                size=5,
+                color=hit_q,
+                colorscale="Plasma",
+                colorbar=dict(title="Charge [p.e.]"),
+                opacity=0.95,
+            ),
+            text=hit_text,
+            hovertemplate="%{text}<extra></extra>",
+            showlegend=True,
+        )
+    )
 
-    if np.all(np.isfinite(start)) and np.all(np.isfinite(stop)):
+    # ---------- True direction arrow ----------
+    start = np.asarray(row["true_start"], dtype=float)
+    direction = np.asarray(row["true_dir"], dtype=float)
+
+    if (
+        detector_scale > 0
+        and np.all(np.isfinite(start))
+        and np.all(np.isfinite(direction))
+        and np.linalg.norm(direction) > 0
+    ):
+        direction = direction / np.linalg.norm(direction)
+
+        arrow_length = 0.23 * detector_scale
+        arrow_end = start + arrow_length * direction
+
+        # Thinner shaft than before.
         fig.add_trace(
             go.Scatter3d(
-                x=[start[0], stop[0]],
-                y=[start[1], stop[1]],
-                z=[start[2], stop[2]],
-                mode="lines+markers",
-                line=dict(width=8),
-                marker=dict(size=5),
-                name="true positron track",
+                x=[start[0], arrow_end[0]],
+                y=[start[1], arrow_end[1]],
+                z=[start[2], arrow_end[2]],
+                mode="lines",
+                line=dict(
+                    width=4,
+                    color="red",
+                ),
+                name="true positron direction",
+                showlegend=True,
             )
         )
 
-    length_string = (
-        f"{row['track_length_cm']:.2f} cm"
-        if row["track_length_cm"] is not None
-        else "None"
+        # More visible cone head.
+        fig.add_trace(
+            go.Cone(
+                x=[arrow_end[0]],
+                y=[arrow_end[1]],
+                z=[arrow_end[2]],
+                u=[direction[0]],
+                v=[direction[1]],
+                w=[direction[2]],
+                sizemode="absolute",
+                sizeref=0.10 * detector_scale,
+                anchor="tip",
+                colorscale=[[0, "red"], [1, "red"]],
+                showscale=False,
+                opacity=0.95,
+                name="direction arrow head",
+                showlegend=False,
+            )
+        )
+
+        fig.add_trace(
+            go.Scatter3d(
+                x=[start[0]],
+                y=[start[1]],
+                z=[start[2]],
+                mode="markers",
+                marker=dict(
+                    size=6,
+                    color="purple",
+                    opacity=0.95,
+                ),
+                name="true start vertex",
+                showlegend=True,
+            )
+        )
+
+    # ---------- Text formatting ----------
+    track_length = row.get("track_length_cm", np.nan)
+    if track_length is not None and np.isfinite(track_length):
+        length_string = f"{track_length:.2f} cm"
+    else:
+        length_string = "nan"
+
+    if "time_span" in row and np.isfinite(row["time_span"]):
+        time_span_string = f"{row['time_span']:.1f} ns"
+    elif np.isfinite(row["min_time"]) and np.isfinite(row["max_time"]):
+        time_span_string = f"{row['max_time'] - row['min_time']:.1f} ns"
+    else:
+        time_span_string = "nan"
+
+    info_text = (
+        f"Energy: {energy_display_label(row['energy_MeV'])}<br>"
+        f"Entry: {row['entry_index']}<br>"
+        f"Track length: {length_string}<br>"
+        f"Total charge: {row['tot_charge']:.2f} p.e.<br>"
+        f"Digitized hits: {row['n_digi_hits']}<br>"
+        f"Hit PMTs: {row['n_digi_tubes_hit_merged']}<br>"
+        f"Hit-time span: {time_span_string}<br>"
+        f"Trigger objects: {row['n_triggers']}"
     )
 
-    title = (
-        f"{row['energy_label']} | entry {row['entry_index']} | "
-        f"L={length_string} | "
-        f"Q={row['tot_charge']:.2f} p.e. | "
-        f"Ndigi={row['n_digi_hits']} | "
-        f"NPMT={row['n_digi_tubes_hit_merged']} | "
-        f"Ntrig={row['n_triggers']}"
-    )
-
+    # ---------- Layout ----------
     fig.update_layout(
-        title=title,
+        title=dict(
+            text=f"3D PMT display - {energy_display_label(row['energy_MeV'])}",
+            x=0.42,
+            y=0.97,
+        ),
+        # Left side reserved for legend + info box.
+        # Right side reserved for the scene + charge colorbar.
         scene=dict(
-            xaxis_title="x [cm]",
-            yaxis_title="y [cm]",
-            zaxis_title="z [cm]",
+            domain=dict(
+                x=[0.28, 0.86],
+                y=[0.05, 0.95],
+            ),
+            xaxis=dict(
+                title="x [cm]",
+                showbackground=True,
+            ),
+            yaxis=dict(
+                title="y [cm]",
+                showbackground=True,
+            ),
+            zaxis=dict(
+                title="z [cm]",
+                showbackground=True,
+            ),
             aspectmode="data",
         ),
-        margin=dict(l=0, r=0, b=0, t=50),
+        legend=dict(
+            x=0.02,
+            y=0.90,
+            xanchor="left",
+            yanchor="top",
+            bgcolor="rgba(255,255,255,0.78)",
+            bordercolor="rgba(0,0,0,0.25)",
+            borderwidth=1,
+            font=dict(size=14),
+        ),
+        annotations=[
+            dict(
+                text=info_text,
+                x=0.02,
+                y=0.58,
+                xref="paper",
+                yref="paper",
+                showarrow=False,
+                align="left",
+                bgcolor="rgba(255,255,255,0.82)",
+                bordercolor="black",
+                borderwidth=1,
+                font=dict(size=14),
+            )
+        ],
+        width=950,
+        height=650,
+        margin=dict(l=10, r=90, b=10, t=55),
     )
 
     fig.write_html(str(output_path))
@@ -402,13 +684,23 @@ def save_3d_display(row, hit_tree, pmt_pos_by_tube, output_path):
     return True
 
 
-def save_2d_display(row, hit_tree, pmt_pos_by_tube, output_path):
+def save_2d_display(row, hit_tree, pmt_map, output_path):
     """
-    Simple 2D unwrapped PMT display.
+    Save a 2D PMT display with detector regions arranged vertically:
 
-    x-axis: PMT azimuth phi
-    y-axis: PMT z position
-    color: merged charge
+        top cap
+        unwrapped barrel
+        bottom cap
+
+    Barrel:
+        x-axis = phi = atan2(y, x) [rad]
+        y-axis = z [cm]
+
+    Caps:
+        x-axis = real x [cm]
+        y-axis = real y [cm]
+
+    Color represents merged digitized charge per PMT.
     """
 
     tube_ids, charges, times = read_hit_map_for_row(hit_tree, row)
@@ -416,55 +708,278 @@ def save_2d_display(row, hit_tree, pmt_pos_by_tube, output_path):
     if len(tube_ids) == 0:
         return False
 
-    phis = []
-    zs = []
-    qs = []
+    charge_by_tube = {
+        int(tube_id): float(charge) for tube_id, charge in zip(tube_ids, charges)
+    }
 
-    for tube_id, charge in zip(tube_ids, charges):
-        tube_id = int(tube_id)
+    all_top_x, all_top_y = [], []
+    hit_top_x, hit_top_y, hit_top_q = [], [], []
 
-        if tube_id not in pmt_pos_by_tube:
-            continue
+    all_barrel_phi, all_barrel_z = [], []
+    hit_barrel_phi, hit_barrel_z, hit_barrel_q = [], [], []
 
-        x, y, z = pmt_pos_by_tube[tube_id]
-        phi = np.arctan2(y, x)
+    all_bottom_x, all_bottom_y = [], []
+    hit_bottom_x, hit_bottom_y, hit_bottom_q = [], [], []
 
-        phis.append(phi)
-        zs.append(z)
-        qs.append(float(charge))
+    for tube_id, pmt in pmt_map.items():
+        x = float(pmt["x"])
+        y = float(pmt["y"])
+        z = float(pmt["z"])
+        cyl_loc = int(pmt["cyl_loc"])
 
-    if len(phis) == 0:
-        return False
+        is_hit = tube_id in charge_by_tube
 
-    plt.figure(figsize=(9, 6))
-    sc = plt.scatter(
-        phis,
-        zs,
-        c=qs,
-        s=12,
-        alpha=0.9,
+        if cyl_loc == 0:
+            all_top_x.append(x)
+            all_top_y.append(y)
+
+            if is_hit:
+                hit_top_x.append(x)
+                hit_top_y.append(y)
+                hit_top_q.append(charge_by_tube[tube_id])
+
+        elif cyl_loc == 1:
+            phi = np.arctan2(y, x)
+
+            all_barrel_phi.append(phi)
+            all_barrel_z.append(z)
+
+            if is_hit:
+                hit_barrel_phi.append(phi)
+                hit_barrel_z.append(z)
+                hit_barrel_q.append(charge_by_tube[tube_id])
+
+        elif cyl_loc == 2:
+            all_bottom_x.append(x)
+            all_bottom_y.append(y)
+
+            if is_hit:
+                hit_bottom_x.append(x)
+                hit_bottom_y.append(y)
+                hit_bottom_q.append(charge_by_tube[tube_id])
+
+    all_top_x = np.asarray(all_top_x, dtype=float)
+    all_top_y = np.asarray(all_top_y, dtype=float)
+    hit_top_x = np.asarray(hit_top_x, dtype=float)
+    hit_top_y = np.asarray(hit_top_y, dtype=float)
+    hit_top_q = np.asarray(hit_top_q, dtype=float)
+
+    all_barrel_phi = np.asarray(all_barrel_phi, dtype=float)
+    all_barrel_z = np.asarray(all_barrel_z, dtype=float)
+    hit_barrel_phi = np.asarray(hit_barrel_phi, dtype=float)
+    hit_barrel_z = np.asarray(hit_barrel_z, dtype=float)
+    hit_barrel_q = np.asarray(hit_barrel_q, dtype=float)
+
+    all_bottom_x = np.asarray(all_bottom_x, dtype=float)
+    all_bottom_y = np.asarray(all_bottom_y, dtype=float)
+    hit_bottom_x = np.asarray(hit_bottom_x, dtype=float)
+    hit_bottom_y = np.asarray(hit_bottom_y, dtype=float)
+    hit_bottom_q = np.asarray(hit_bottom_q, dtype=float)
+
+    all_hit_q = np.concatenate(
+        [
+            hit_top_q,
+            hit_barrel_q,
+            hit_bottom_q,
+        ]
     )
-    plt.colorbar(sc, label="charge [p.e.]")
-    plt.xlabel(r"$\phi$ [rad]", fontsize=14)
-    plt.ylabel("z [cm]", fontsize=14)
+
+    if len(all_hit_q) > 0:
+        q_min = float(np.min(all_hit_q))
+        q_max = float(np.max(all_hit_q))
+
+        if np.isclose(q_min, q_max):
+            q_min = 0.0
+            q_max = q_max + 1.0
+    else:
+        q_min = 0.0
+        q_max = 1.0
+
+    fig = plt.figure(figsize=(10, 13))
+
+    gs = fig.add_gridspec(
+        nrows=3,
+        ncols=1,
+        height_ratios=[1.15, 2.2, 1.15],
+        hspace=0.35,
+    )
+
+    ax_top = fig.add_subplot(gs[0, 0])
+    ax_barrel = fig.add_subplot(gs[1, 0])
+    ax_bottom = fig.add_subplot(gs[2, 0])
+
+    # ---------- Top cap ----------
+    ax_top.scatter(
+        all_top_x,
+        all_top_y,
+        s=5,
+        c="lightgray",
+        alpha=0.35,
+        linewidths=0,
+        label="all PMTs",
+    )
+
+    sc = None
+
+    if len(hit_top_q) > 0:
+        sc = ax_top.scatter(
+            hit_top_x,
+            hit_top_y,
+            s=18,
+            c=hit_top_q,
+            cmap="plasma",
+            vmin=q_min,
+            vmax=q_max,
+            linewidths=0,
+            alpha=0.95,
+            label="hit PMTs",
+        )
+
+    ax_top.set_title("Top cap", fontsize=14)
+    ax_top.set_xlabel("x [cm]", fontsize=13)
+    ax_top.set_ylabel("y [cm]", fontsize=13)
+    ax_top.set_aspect("equal", adjustable="box")
+    ax_top.set_box_aspect(1)
+    ax_top.set_anchor("C")
+    ax_top.grid(alpha=0.25)
+    ax_top.tick_params(axis="both", labelsize=14)
+
+    # ---------- Barrel ----------
+    ax_barrel.scatter(
+        all_barrel_phi,
+        all_barrel_z,
+        s=5,
+        c="lightgray",
+        alpha=0.35,
+        linewidths=0,
+    )
+
+    if len(hit_barrel_q) > 0:
+        sc = ax_barrel.scatter(
+            hit_barrel_phi,
+            hit_barrel_z,
+            s=18,
+            c=hit_barrel_q,
+            cmap="plasma",
+            vmin=q_min,
+            vmax=q_max,
+            linewidths=0,
+            alpha=0.95,
+        )
+
+    ax_barrel.set_title("Unwrapped barrel", fontsize=14)
+    ax_barrel.set_xlabel(r"$\phi = \mathrm{atan2}(y,x)$ [rad]", fontsize=13)
+    ax_barrel.set_ylabel("z [cm]", fontsize=13)
+    ax_barrel.set_xlim(-np.pi, np.pi)
+    ax_barrel.set_xticks(
+        [-np.pi, -np.pi / 2, 0.0, np.pi / 2, np.pi],
+        [r"$-\pi$", r"$-\pi/2$", "0", r"$\pi/2$", r"$\pi$"],
+    )
+    ax_barrel.axvline(0.0, linewidth=0.9, alpha=0.4)
+    ax_barrel.axhline(0.0, linewidth=0.9, alpha=0.4)
+    ax_barrel.grid(alpha=0.25)
+    ax_barrel.tick_params(axis="both", labelsize=14)
+
+    # ---------- Bottom cap ----------
+    ax_bottom.scatter(
+        all_bottom_x,
+        all_bottom_y,
+        s=5,
+        c="lightgray",
+        alpha=0.35,
+        linewidths=0,
+    )
+
+    if len(hit_bottom_q) > 0:
+        sc = ax_bottom.scatter(
+            hit_bottom_x,
+            hit_bottom_y,
+            s=18,
+            c=hit_bottom_q,
+            cmap="plasma",
+            vmin=q_min,
+            vmax=q_max,
+            linewidths=0,
+            alpha=0.95,
+        )
+
+    ax_bottom.set_title("Bottom cap", fontsize=14)
+    ax_bottom.set_xlabel("x [cm]", fontsize=13)
+    ax_bottom.set_ylabel("y [cm]", fontsize=13)
+    ax_bottom.set_aspect("equal", adjustable="box")
+    ax_bottom.set_box_aspect(1)
+    ax_bottom.set_anchor("C")
+    ax_bottom.grid(alpha=0.25)
+    ax_bottom.tick_params(axis="both", labelsize=14)
+
+    if len(all_bottom_x) > 0 and len(all_bottom_y) > 0:
+        cap_lim = 1.05 * max(
+            np.max(np.abs(all_bottom_x)),
+            np.max(np.abs(all_bottom_y)),
+        )
+        ax_bottom.set_xlim(-cap_lim, cap_lim)
+        ax_bottom.set_ylim(-cap_lim, cap_lim)
+
+    # ---------- Shared colorbar ----------
+    if sc is not None:
+        cbar = fig.colorbar(
+            sc,
+            ax=[ax_top, ax_barrel, ax_bottom],
+            pad=0.02,
+            shrink=0.86,
+        )
+        cbar.set_label("Charge [p.e.]", fontsize=13)
+        cbar.ax.tick_params(labelsize=14)
+
+    # ---------- Info box ----------
+    if "time_span" in row and np.isfinite(row["time_span"]):
+        time_span_string = f"{row['time_span']:.1f} ns"
+    elif np.isfinite(row["min_time"]) and np.isfinite(row["max_time"]):
+        time_span_string = f"{row['max_time'] - row['min_time']:.1f} ns"
+    else:
+        time_span_string = "nan"
 
     length_string = (
         f"{row['track_length_cm']:.2f} cm"
-        if row["track_length_cm"] is not None
-        else "None"
+        if row["track_length_cm"] is not None and np.isfinite(row["track_length_cm"])
+        else "nan"
     )
 
-    title = (
-        f"{row['energy_label']} | entry {row['entry_index']} | "
-        f"L={length_string} | "
-        f"Q={row['tot_charge']:.2f} p.e."
+    info_text = (
+        f"Energy: {energy_display_label(row['energy_MeV'])}\n"
+        f"Entry: {row['entry_index']}\n"
+        f"Track length: {length_string}\n"
+        f"Total charge: {row['tot_charge']:.2f} p.e.\n"
+        f"Digitized hits: {row['n_digi_hits']}\n"
+        f"Hit PMTs: {row['n_digi_tubes_hit_merged']}\n"
+        f"Hit-time span: {time_span_string}\n"
+        f"Trigger objects: {row['n_triggers']}"
     )
 
-    plt.title(title, fontsize=13)
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
+    fig.text(
+        0.02,
+        0.985,
+        info_text,
+        ha="left",
+        va="top",
+        fontsize=15,
+        bbox=dict(
+            boxstyle="round",
+            facecolor="white",
+            alpha=0.88,
+            edgecolor="black",
+            linewidth=0.9,
+        ),
+    )
+
+    fig.suptitle(
+        f"2D PMT display - {energy_display_label(row['energy_MeV'])}",
+        fontsize=16,
+        y=0.995,
+    )
+
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
 
     return True
 
@@ -472,7 +987,7 @@ def save_2d_display(row, hit_tree, pmt_pos_by_tube, output_path):
 def print_row_summary(row):
     print()
     print(f"Entry index: {row['entry_index']}")
-    print(f"Generated positron energy: {row['energy_label']}")
+    print(f"Generated positron energy: {row['energy_MeV']}")
     print(f"Track length: {row['track_length_cm']} cm")
     print(f"Number of WCSim trigger objects: {row['n_triggers']}")
     print(f"Raw hits, trigger-summed: {row['n_raw_hits']}")
@@ -485,7 +1000,7 @@ def print_row_summary(row):
     print(f"Maximum hit time: {row['max_time']} ns")
 
 
-def run_single_event_mode(rows, hit_tree, pmt_pos_by_tube, entry_index):
+def run_single_event_mode(rows, hit_tree, pmt_map, entry_index):
     matching = [row for row in rows if row["entry_index"] == entry_index]
 
     if len(matching) == 0:
@@ -504,14 +1019,14 @@ def run_single_event_mode(rows, hit_tree, pmt_pos_by_tube, entry_index):
     made_3d = save_3d_display(
         row=row,
         hit_tree=hit_tree,
-        pmt_pos_by_tube=pmt_pos_by_tube,
+        pmt_map=pmt_map,
         output_path=OUTPUT_DIR / f"{stem}_3d.html",
     )
 
     made_2d = save_2d_display(
         row=row,
         hit_tree=hit_tree,
-        pmt_pos_by_tube=pmt_pos_by_tube,
+        pmt_map=pmt_map,
         output_path=OUTPUT_DIR / f"{stem}_2d.pdf",
     )
 
@@ -526,21 +1041,21 @@ def run_single_event_mode(rows, hit_tree, pmt_pos_by_tube, entry_index):
         print("No valid hit map: 2D display not produced.")
 
 
-def run_full_analysis(rows, hit_tree, pmt_pos_by_tube):
+def run_full_analysis(rows, hit_tree, pmt_map):
 
-    energy_labels = []
+    energies = []
     for row in rows:
-        energy_label = f"{row['energy_MeV']:.3f}_MeV"
-        if energy_label not in energy_labels:
-            energy_labels.append(energy_label)
+        energy = float(row["energy_MeV"])
+        if not any(np.isclose(energy, e) for e in energies):
+            energies.append(energy)
 
-    for energy_label_i in energy_labels:
-        energy_label = f"{energy_label_i}"
+    for energy in energies:
+        energy_label = energy_display_label(energy)
+        clean_label = energy_file_label(energy)
+
         energy_rows = [
-            row for row in rows if f"{row['energy_MeV']:.3f}_MeV" == energy_label_i
+            row for row in rows if np.isclose(float(row["energy_MeV"]), energy)
         ]
-
-        clean_label = sanitize_label(energy_label_i)
 
         energy_dir = OUTPUT_DIR / clean_label
         hist_dir = energy_dir / "histograms"
@@ -552,14 +1067,23 @@ def run_full_analysis(rows, hit_tree, pmt_pos_by_tube):
         display_2d_dir.mkdir(parents=True, exist_ok=True)
 
         print()
-        print(f"Energy: {energy_label_i}")
+        print(f"Energy: {energy_label}")
         print(f"  events: {len(energy_rows)}")
 
         n_nonzero_raw = sum(row["n_raw_hits"] > 0 for row in energy_rows)
         n_nonzero_digi = sum(row["n_digi_hits"] > 0 for row in energy_rows)
         n_valid_display = sum(has_valid_digihits(row) for row in energy_rows)
         n_multi_trigger = sum(row["n_triggers"] > 1 for row in energy_rows)
+        trigger_values, trigger_counts = np.unique(
+            np.array([row["n_triggers"] for row in energy_rows], dtype=int),
+            return_counts=True,
+        )
+        trigger_summary = ", ".join(
+            f"{value} trigger: {count} event(s)"
+            for value, count in zip(trigger_values, trigger_counts)
+        )
 
+        print(f"  trigger summary:          {trigger_summary}")
         print(f"  events with raw hits:       {n_nonzero_raw}")
         print(f"  events with digi hits:      {n_nonzero_digi}")
         print(f"  valid display candidates:   {n_valid_display}")
@@ -567,7 +1091,7 @@ def run_full_analysis(rows, hit_tree, pmt_pos_by_tube):
 
         save_histograms_for_energy(
             rows=energy_rows,
-            energy_label=energy_label_i,
+            energy_label=energy_label,
             output_dir=hist_dir,
         )
 
@@ -610,14 +1134,14 @@ def run_full_analysis(rows, hit_tree, pmt_pos_by_tube):
             save_3d_display(
                 row=row,
                 hit_tree=hit_tree,
-                pmt_pos_by_tube=pmt_pos_by_tube,
+                pmt_map=pmt_map,
                 output_path=display_3d_dir / f"{stem}.html",
             )
 
             save_2d_display(
                 row=row,
                 hit_tree=hit_tree,
-                pmt_pos_by_tube=pmt_pos_by_tube,
+                pmt_map=pmt_map,
                 output_path=display_2d_dir / f"{stem}.pdf",
             )
 
@@ -669,8 +1193,8 @@ def main():
     print(f"EventSummary entries: {n_event_entries}")
     print(f"PmtHitMap entries: {n_hit_entries}")
 
-    pmt_pos_by_tube = load_geometry(root_file)
-    print(f"Geometry PMTs: {len(pmt_pos_by_tube)}")
+    pmt_map = load_geometry(root_file)
+    print(f"Geometry PMTs: {len(pmt_map)}")
 
     rows = build_event_rows(
         event_tree=event_tree,
@@ -680,14 +1204,14 @@ def main():
         run_single_event_mode(
             rows=rows,
             hit_tree=hit_tree,
-            pmt_pos_by_tube=pmt_pos_by_tube,
+            pmt_map=pmt_map,
             entry_index=args.entry_index,
         )
     else:
         run_full_analysis(
             rows=rows,
             hit_tree=hit_tree,
-            pmt_pos_by_tube=pmt_pos_by_tube,
+            pmt_map=pmt_map,
         )
 
     root_file.Close()

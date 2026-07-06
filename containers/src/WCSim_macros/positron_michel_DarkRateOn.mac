@@ -49,17 +49,20 @@
 /mygen/generator gun
 #/gun/particle mu+
 /gun/particle e+
-#/gun/direction 1 0 0 
-#/gun/position 0 0 0  
+/gun/direction 1 0 0 
+/gun/position 0 0 0  
 
 
 ## change the name of the output root file, default = wcsim.root
 /WCSimIO/RootFile /output_data/positron_michel_seed1_DarkRateOn.root
 
-/gun/energy 0.3 MeV
+/gun/energy 2 MeV
 /run/beamOn 1000
 
-/gun/energy 1 MeV
+/gun/energy 3 MeV
+/run/beamOn 1000
+
+/gun/energy 5 MeV
 /run/beamOn 1000
 
 /gun/energy 10 MeV

@@ -46,16 +46,33 @@
 # Or you can use the G4 Particle Gun
 # for a full list of /gun/ commands see:
 # http://geant4.web.cern.ch/geant4/G4UsersDocuments/UsersGuides/ForApplicationDeveloper/html/Control/UIcommands/_gun_.html
+/particle/select mu+
+/particle/property/stable false
+/particle/property/lifetime 1.0 us
+/particle/property/dump
+
 /mygen/generator gun
 /gun/particle mu+
-#/gun/direction 1 0 0 
-#/gun/position 0 0 0  
+/gun/direction 1 0 0 
+/gun/position 0 0 0  
 
 
 ## change the name of the output root file, default = wcsim.root
-/WCSimIO/RootFile /output_data/muplus_test.root
+/WCSimIO/RootFile /output_data/muplus_michel_seed1_TauShort.root
+
+/gun/energy 100 MeV
+/run/beamOn 1000
+
+/gun/energy 200 MeV
+/run/beamOn 1000
+
+/gun/energy 300 MeV
+/run/beamOn 1000
 
 /gun/energy 500 MeV
-/run/beamOn 1
+/run/beamOn 1000
+
+/gun/energy 800 MeV
+/run/beamOn 1000
 
 #exit
