@@ -1749,6 +1749,263 @@ hit_time.GetParentID()
 In a muon plus Michel electron event, this is the complete truth chain needed to
 separate the PMT light contribution of the primary muon from that of the decay
 electron.
+\section{WCSim trigger}
+\label{sec:wcsim_trigger}
+
+In WCSim the detector response is processed in two conceptually different
+steps. First, optical photons reaching the PMTs are converted into digitized
+PMT signals by the digitizer. Then, the trigger algorithm decides which
+digitized hits are saved as part of a triggered event. \\
+In the simulations considered here the trigger is an \texttt{NDigits} trigger.
+The algorithm scans the digitized hit times with a fixed time window
+\(\Delta t_{\rm trig}\). In the configuration used in this work,
+\[
+  \Delta t_{\rm trig} = 250~{\rm ns},
+  \qquad
+  N_{\rm thr} = 25 .
+\]
+A trigger is issued when more than \(N_{\rm thr}\) digits are found inside
+the sliding time window. Since the condition is strictly
+\[
+  N_{\rm digits} > N_{\rm thr},
+\]
+a threshold value \(N_{\rm thr}=25\) means that the trigger fires when the
+26th digit is found inside the trigger-search window. The trigger time
+\(t_{\rm trig}\) is then defined as the time of this threshold-crossing digit.\\
+Once a trigger has been found, WCSim does not save only the 250 ns window
+which caused the trigger. Instead, it opens a larger readout gate around the
+trigger time,
+\[
+  t_{\rm trig} - 400~{\rm ns}
+  \;<\;
+  t
+  \;<\;
+  t_{\rm trig} + 950~{\rm ns}.
+\]
+All digitized PMT hits whose times fall inside this gate are stored in the
+output triggered collection. The trigger time is also used to shift the saved
+digit times by an offset, so that the trigger appears at a fixed reference
+time in the output.\\
+After a trigger is found, the algorithm resumes the search at the end of the
+post-trigger part of the previous gate. If a later trigger is found, its own
+readout gate is built in the same way. When two saved gates overlap, WCSim
+does not duplicate the same digitized hits in the overlapping region. The
+new gate is either clipped at the end of the previous one, or skipped if it is
+fully contained in the previous gate. Operationally, this means that nearby
+trigger gates are treated as a single continuous saved time region, while
+well-separated trigger gates appear as different trigger objects in the WCSim
+event.\\
+\newline
+A \texttt{WCSimRootEvent} can contain one or more
+\texttt{WCSimRootTrigger} objects. The first trigger object usually contains
+the prompt activity, while additional trigger objects can appear when delayed
+activity, such as a Michel electron from muon decay, occurs sufficiently late
+to produce a separate trigger gate. \\
+The physical implication is that the trigger gate defines which part of the
+detector activity is visible to the reconstruction. This is especially
+important for events containing a stopping muon followed by a Michel
+electron. If the electron is emitted inside the same WCSim trigger gate, the
+muon and the Michel electron are stored in the same trigger object. If the
+electron is emitted after the end of the first gate and is energetic enough to
+satisfy the NDigits condition, it may create a second WCSim trigger object.
+If it occurs near the right edge of the first gate, only part of the electron
+light may be saved in the first trigger object, or the event may become
+sensitive to the exact details of the trigger-gate overlap.\\
+\newline
+This should be kept distinct from the fiTQun notion of a subevent. A WCSim
+trigger object is a software readout gate: it determines what digitized hits
+are stored. A fiTQun subevent is instead a reconstruction-level time cluster
+found inside the saved hits. Thus, one WCSim trigger object can contain more
+than one fiTQun subevent, for example a prompt muon and an in-gate Michel
+electron.
+\subsection{Trigger gate length}
+Changing the trigger gate length has non-trivial consequences. A shorter
+gate reduces the amount of dark noise and accidental late light saved in the
+event. It also makes the prompt activity cleaner and can reduce ambiguities
+in the reconstruction. However, it increases the probability of losing delayed
+activity, or saving only a partial Michel electron near the right edge of the
+gate. This is dangerous because fiTQun can only reconstruct what has been
+saved by WCSim: if the electron hits are outside the WCSim trigger gate, no
+subevent algorithm can recover them.\\
+A longer gate has the opposite behaviour. It increases the probability that a
+delayed Michel electron is saved together with the parent muon, which is
+useful if the goal is to study in-gate decay-electron reconstruction. However,
+it also increases the number of unrelated dark-noise hits and late/scattered
+light hits. More importantly, it can put several physically distinct particle
+activities into the same reconstruction time region. This makes the fiTQun
+subeventing problem harder, because the algorithm must separate different
+clusters using timing information, while the first peak-finding step assumes a
+common pre-fit vertex. For long muon tracks this assumption can fail: the
+Michel electron vertex can be far from the original interaction vertex, so the
+time-of-flight correction computed from the prompt pre-fit vertex smears the
+Michel peak in residual time.\\
+Therefore, the WCSim trigger gate is a compromise. It must be long enough
+to retain the physically relevant delayed light, but not so long that the
+event becomes dominated by unrelated late activity or by multiple
+overlapping particles whose hits are difficult to separate.
+
+\section{fiTQun subevent algorithm}
+\label{sec:fitqun_subevent_algorithm}
+
+fiTQun performs a maximum-likelihood reconstruction of water-Cherenkov
+events. Before the detailed single-ring and multi-ring fits are applied, the
+event is divided into time clusters called subevents. This step is
+crucial because the likelihood reconstruction is then applied separately, or
+with a special hit assignment, to the different time components of the event.
+\subsection{Vertex pre-fit}
+The first step is the vertex pre-fit. The purpose of the pre-fit is not to
+provide the final reconstructed vertex, but to provide a reasonable seed for
+the later likelihood minimization and for the time clustering. It uses only
+PMT timing information and assumes, at this stage, that the light comes from
+a point-like source. For a test vertex \(\mathbf{x}\) and interaction time \(t\),
+fiTQun defines a timing goodness
+\[
+  G(\mathbf{x},t)
+  =
+  \sum_{i \in {\rm hits}}
+  \exp\left[
+    -\frac{1}{2}
+    \left(
+      \frac{T_i^{\rm res}}{\sigma}
+    \right)^2
+  \right],
+\]
+where the residual time is
+\[
+  T_i^{\rm res}
+  =
+  t_i^\mathrm{raw}
+  -
+  t
+  -
+  \frac{
+    \left|
+      \mathbf{R}_i^{\rm PMT} - \mathbf{x}
+    \right|
+  }{c_n}.
+\]
+Here \(t_i^\mathrm{raw}\) is the measured PMT hit time,
+\(\mathbf{R}_i^{\rm PMT}\) is the PMT position, and \(c_n\) is the speed of
+light in water. If the tested vertex and time are close to the true emission
+point, the direct-light residual times accumulate near zero, and the goodness
+becomes large. The pre-fit vertex is found by maximizing this goodness. Therefore, in this case, the  photon source is assumed to be at the vertex only; thus it is a serious approximation.
+\subsection{Peak finder}
+Firstly, the vertex is found using the vertex pre-fit in a time windown of $\left[-100\,\mathrm{ns}, +400\,\mathrm{ns}\right]$ around $t_\mathrm{trigger}$. The vertex \(\mathbf{x}\) is fixed to the pre-fit value, while the 
+goodness \(G(\mathbf{x},t)\) is scanned as a function of time in steps of about \(8~{\rm ns}\), starting approximately \(300~{\rm ns}\) before the event trigger. The $t_i^\mathrm{raw}\in\left[-200\,\mathrm{ns}, +15000\,\mathrm{ns}\right]$ time window around the trigger are used to search for delayed activity when computing the $T_i^\mathrm{res}$ for each $t$ scanned.\\
+\newline
+A local maximum of the scanned goodness is not automatically accepted as a
+subevent. Scattered light, reflected light, dark noise, and imperfect
+time-of-flight subtraction can produce fake local maxima. Therefore fiTQun
+uses a dynamic threshold. If \(M\) is the set of local maxima\footnote{A local maxima $t_i$ is defined as the point where the likelihood value in this $t_i$ is greater than $G(x, t_{i-1}), G(x, t_{i+1})$} of
+\(G(\mathbf{x},t)\), the threshold is defined as
+\[
+  F(t)
+  =
+  0.25
+  \max_{t_i \in M}
+  \left[
+    G(\mathbf{x},t_i)
+    f(t-t_i)
+  \right]
+  + \eta ,
+\]
+for each $t$ scanned,
+with
+\[
+  f(\tau)
+  =
+  \frac{1}{1+(\tau/\gamma)^2},
+  \qquad
+  \gamma =
+  \begin{cases}
+    25~{\rm ns}, & \tau < 0, \\
+    70~{\rm ns}, & \tau > 0,
+  \end{cases}
+  \qquad
+  \eta = 9 .
+\]
+The offset \(\eta=9\) suppresses small peaks from dark noise. The first
+accepted subevent peak is the first local maximum above \(F(t)\). A later
+local maximum is accepted as a distinct subevent only if the goodness between
+the previous accepted peak and the new one falls below \(0.6F(t)\). This
+second requirement avoids double-counting a single physical subevent which
+has been split into several nearby peaks by imperfect time-of-flight
+correction.\\
+\newline
+For each accepted peak, fiTQun defines a time window using residual times
+with respect to that peak:
+\[
+  -180~{\rm ns}
+  <
+  T_i^{\rm res}
+  <
+  800~{\rm ns}.
+\]
+The earliest and latest raw hit times satisfying this residual-time condition
+define the actual time boundaries of the window. If two such windows overlap,
+they are merged. This is why a prompt particle and a sufficiently early
+Michel electron can end up inside the same reconstruction time window: they
+are distinct peaks, but their associated hit windows are not independent.\\
+The vertex pre-fit and the peak finder are then run again inside each
+candidate time window, using only the hits contained in that window. This
+second pass improves the precision of the final subevent candidates. It is
+particularly important when the first pre-fit vertex is not a good reference
+point for all subevents. For example, a high-momentum muon can travel a long
+distance before decaying. The Michel electron is then produced near the muon
+stopping point, not near the original interaction vertex. If the residual
+times of the Michel hits are computed using the prompt pre-fit vertex, the
+Michel peak can be broadened and may fall below threshold. Re-running the
+pre-fit after isolating or masking the prompt activity moves the reference
+vertex closer to the delayed activity and increases the peak-finding
+efficiency.
+\subsection{In-gate electron fit}
+An in-gate
+decay electron is a Michel electron whose activity is contained in the same
+time window as the parent primary particle. In this case, fiTQun cannot
+simply fit the full time window twice, because the PMT hits from the primary
+particle and from the Michel electron would contaminate each other. Instead,
+it assigns hits to the in-gate subevent using a narrow residual-time cut.
+For a given in-gate subevent, a hit is associated with that subevent if
+\[
+  -30~{\rm ns}
+  <
+  T_i^{\rm res}
+  <
+  60~{\rm ns},
+\]
+where the residual time is computed with the pre-fit vertex and peak time of
+that subevent (so, even if the time windows have been merged, the algorithm still recovers the two time peaks previously found). The in-gate electron is reconstructed using only the hits
+satisfying this condition, while the other hits are ignored. Conversely, the
+primary subevent is reconstructed after masking the hits associated with the
+in-gate delayed subevents.
+\subsection{WCSim and fiTQun correlation}
+All the procedure explains why the WCSim number of triggers and trigger gate length matters for fiTQun. In fact, fiTQun apply the peak finder algorithm separately to all event triggers, thus two different outputs could happen:
+\begin{itemize}
+    \item  If the
+WCSim gate is too short, some Michel electron hits may be absent from the
+input, and the fiTQun subevent algorithm cannot reconstruct the missing
+activity.
+\item If the WCSim gate is longer, the Michel electron is more likely to
+be present, but fiTQun must separate it from the prompt activity. This is
+easy only when the two activities are well separated in residual time and
+when the pre-fit vertex gives a reasonable time-of-flight correction for both.
+It becomes harder for high-momentum muons, because the prompt muon and the
+Michel electron can be spatially separated by several meters.
+\end{itemize}
+A further complication is that, within one reconstruction time window, a PMT
+can effectively contribute at most one hit time. If a PMT is first hit by the
+prompt muon and later by the Michel electron, the later information can be
+partially hidden. This effect worsens for high-momentum muons, which
+illuminate a larger fraction of the detector and therefore occupy more PMTs
+before the Michel electron occurs. In such cases the Michel electron may be
+physically present in the WCSim gate but still difficult to tag efficiently in
+fiTQun.\\
+\newline
+In summary, WCSim decides which digitized hits are saved by applying a
+software trigger gate, while fiTQun tries to separate the saved hits into
+physically meaningful time clusters. A short WCSim gate gives cleaner prompt
+events but risks losing delayed electrons. A long WCSim gate preserves more
+delayed activity but makes subevent separation more challenging.
 
 
 \newpage
