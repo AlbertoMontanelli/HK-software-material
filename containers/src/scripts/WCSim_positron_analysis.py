@@ -712,6 +712,10 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
         int(tube_id): float(charge) for tube_id, charge in zip(tube_ids, charges)
     }
 
+    # ------------------------------------------------------------------
+    # Separate PMTs according to detector region
+    # ------------------------------------------------------------------
+
     all_top_x, all_top_y = [], []
     hit_top_x, hit_top_y, hit_top_q = [], [], []
 
@@ -729,6 +733,7 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
 
         is_hit = tube_id in charge_by_tube
 
+        # Top cap
         if cyl_loc == 0:
             all_top_x.append(x)
             all_top_y.append(y)
@@ -738,6 +743,7 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
                 hit_top_y.append(y)
                 hit_top_q.append(charge_by_tube[tube_id])
 
+        # Barrel
         elif cyl_loc == 1:
             phi = np.arctan2(y, x)
 
@@ -749,6 +755,7 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
                 hit_barrel_z.append(z)
                 hit_barrel_q.append(charge_by_tube[tube_id])
 
+        # Bottom cap
         elif cyl_loc == 2:
             all_bottom_x.append(x)
             all_bottom_y.append(y)
@@ -757,6 +764,10 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
                 hit_bottom_x.append(x)
                 hit_bottom_y.append(y)
                 hit_bottom_q.append(charge_by_tube[tube_id])
+
+    # ------------------------------------------------------------------
+    # Convert lists to NumPy arrays
+    # ------------------------------------------------------------------
 
     all_top_x = np.asarray(all_top_x, dtype=float)
     all_top_y = np.asarray(all_top_y, dtype=float)
@@ -775,6 +786,10 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
     hit_bottom_x = np.asarray(hit_bottom_x, dtype=float)
     hit_bottom_y = np.asarray(hit_bottom_y, dtype=float)
     hit_bottom_q = np.asarray(hit_bottom_q, dtype=float)
+
+    # ------------------------------------------------------------------
+    # Common charge scale
+    # ------------------------------------------------------------------
 
     all_hit_q = np.concatenate(
         [
@@ -795,20 +810,74 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
         q_min = 0.0
         q_max = 1.0
 
+    # ------------------------------------------------------------------
+    # Common cap limits
+    #
+    # Using the same limits for both caps ensures that:
+    #   - they have the same physical scale;
+    #   - their centres coincide;
+    #   - their apparent sizes are identical.
+    # ------------------------------------------------------------------
+
+    cap_extents = []
+
+    if len(all_top_x) > 0:
+        cap_extents.extend(
+            [
+                np.max(np.abs(all_top_x)),
+                np.max(np.abs(all_top_y)),
+            ]
+        )
+
+    if len(all_bottom_x) > 0:
+        cap_extents.extend(
+            [
+                np.max(np.abs(all_bottom_x)),
+                np.max(np.abs(all_bottom_y)),
+            ]
+        )
+
+    if cap_extents:
+        cap_lim = 1.05 * max(cap_extents)
+    else:
+        cap_lim = 1.0
+
+    # ------------------------------------------------------------------
+    # Figure layout
+    #
+    # The left empty column counterbalances the colorbar column.
+    # Therefore, the central plotting column is centred in the figure.
+    # ------------------------------------------------------------------
+
     fig = plt.figure(figsize=(10, 13))
 
     gs = fig.add_gridspec(
         nrows=3,
-        ncols=1,
+        ncols=3,
         height_ratios=[1.15, 2.2, 1.15],
+        width_ratios=[0.075, 1.0, 0.075],
         hspace=0.35,
+        wspace=0.08,
     )
 
-    ax_top = fig.add_subplot(gs[0, 0])
-    ax_barrel = fig.add_subplot(gs[1, 0])
-    ax_bottom = fig.add_subplot(gs[2, 0])
+    # Empty left column, used only to balance the colorbar.
+    ax_spacer = fig.add_subplot(gs[:, 0])
+    ax_spacer.axis("off")
 
-    # ---------- Top cap ----------
+    # Main plotting axes.
+    ax_top = fig.add_subplot(gs[0, 1])
+    ax_barrel = fig.add_subplot(gs[1, 1])
+    ax_bottom = fig.add_subplot(gs[2, 1])
+
+    # Dedicated colorbar axis.
+    cax = fig.add_subplot(gs[:, 2])
+
+    sc = None
+
+    # ------------------------------------------------------------------
+    # Top cap
+    # ------------------------------------------------------------------
+
     ax_top.scatter(
         all_top_x,
         all_top_y,
@@ -818,8 +887,6 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
         linewidths=0,
         label="all PMTs",
     )
-
-    sc = None
 
     if len(hit_top_q) > 0:
         sc = ax_top.scatter(
@@ -838,13 +905,20 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
     ax_top.set_title("Top cap", fontsize=14)
     ax_top.set_xlabel("x [cm]", fontsize=13)
     ax_top.set_ylabel("y [cm]", fontsize=13)
+
+    ax_top.set_xlim(-cap_lim, cap_lim)
+    ax_top.set_ylim(-cap_lim, cap_lim)
+
     ax_top.set_aspect("equal", adjustable="box")
     ax_top.set_box_aspect(1)
-    ax_top.set_anchor("C")
+
     ax_top.grid(alpha=0.25)
     ax_top.tick_params(axis="both", labelsize=14)
 
-    # ---------- Barrel ----------
+    # ------------------------------------------------------------------
+    # Unwrapped barrel
+    # ------------------------------------------------------------------
+
     ax_barrel.scatter(
         all_barrel_phi,
         all_barrel_z,
@@ -868,19 +942,44 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
         )
 
     ax_barrel.set_title("Unwrapped barrel", fontsize=14)
-    ax_barrel.set_xlabel(r"$\phi = \mathrm{atan2}(y,x)$ [rad]", fontsize=13)
+    ax_barrel.set_xlabel(
+        r"$\phi = \mathrm{atan2}(y,x)$ [rad]",
+        fontsize=13,
+    )
     ax_barrel.set_ylabel("z [cm]", fontsize=13)
+
     ax_barrel.set_xlim(-np.pi, np.pi)
+
     ax_barrel.set_xticks(
         [-np.pi, -np.pi / 2, 0.0, np.pi / 2, np.pi],
-        [r"$-\pi$", r"$-\pi/2$", "0", r"$\pi/2$", r"$\pi$"],
+        [
+            r"$-\pi$",
+            r"$-\pi/2$",
+            "0",
+            r"$\pi/2$",
+            r"$\pi$",
+        ],
     )
-    ax_barrel.axvline(0.0, linewidth=0.9, alpha=0.4)
-    ax_barrel.axhline(0.0, linewidth=0.9, alpha=0.4)
+
+    ax_barrel.axvline(
+        0.0,
+        linewidth=0.9,
+        alpha=0.4,
+    )
+
+    ax_barrel.axhline(
+        0.0,
+        linewidth=0.9,
+        alpha=0.4,
+    )
+
     ax_barrel.grid(alpha=0.25)
     ax_barrel.tick_params(axis="both", labelsize=14)
 
-    # ---------- Bottom cap ----------
+    # ------------------------------------------------------------------
+    # Bottom cap
+    # ------------------------------------------------------------------
+
     ax_bottom.scatter(
         all_bottom_x,
         all_bottom_y,
@@ -906,44 +1005,57 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
     ax_bottom.set_title("Bottom cap", fontsize=14)
     ax_bottom.set_xlabel("x [cm]", fontsize=13)
     ax_bottom.set_ylabel("y [cm]", fontsize=13)
+
+    ax_bottom.set_xlim(-cap_lim, cap_lim)
+    ax_bottom.set_ylim(-cap_lim, cap_lim)
+
     ax_bottom.set_aspect("equal", adjustable="box")
     ax_bottom.set_box_aspect(1)
-    ax_bottom.set_anchor("C")
+
     ax_bottom.grid(alpha=0.25)
     ax_bottom.tick_params(axis="both", labelsize=14)
 
-    if len(all_bottom_x) > 0 and len(all_bottom_y) > 0:
-        cap_lim = 1.05 * max(
-            np.max(np.abs(all_bottom_x)),
-            np.max(np.abs(all_bottom_y)),
-        )
-        ax_bottom.set_xlim(-cap_lim, cap_lim)
-        ax_bottom.set_ylim(-cap_lim, cap_lim)
+    # ------------------------------------------------------------------
+    # Shared colorbar
+    # ------------------------------------------------------------------
 
-    # ---------- Shared colorbar ----------
     if sc is not None:
         cbar = fig.colorbar(
             sc,
-            ax=[ax_top, ax_barrel, ax_bottom],
-            pad=0.02,
-            shrink=0.86,
+            cax=cax,
         )
-        cbar.set_label("Charge [p.e.]", fontsize=13)
-        cbar.ax.tick_params(labelsize=14)
 
-    # ---------- Info box ----------
+        cbar.set_label(
+            "Charge [p.e.]",
+            fontsize=13,
+        )
+
+        cbar.ax.tick_params(
+            labelsize=14,
+        )
+
+    else:
+        cax.axis("off")
+
+    # ------------------------------------------------------------------
+    # Information box
+    # ------------------------------------------------------------------
+
     if "time_span" in row and np.isfinite(row["time_span"]):
         time_span_string = f"{row['time_span']:.1f} ns"
+
     elif np.isfinite(row["min_time"]) and np.isfinite(row["max_time"]):
         time_span_string = f"{row['max_time'] - row['min_time']:.1f} ns"
+
     else:
         time_span_string = "nan"
 
-    length_string = (
-        f"{row['track_length_cm']:.2f} cm"
-        if row["track_length_cm"] is not None and np.isfinite(row["track_length_cm"])
-        else "nan"
-    )
+    track_length = row["track_length_cm"]
+
+    if track_length is not None and np.isfinite(track_length):
+        length_string = f"{track_length:.2f} cm"
+    else:
+        length_string = "nan"
 
     info_text = (
         f"Energy: {energy_display_label(row['energy_MeV'])}\n"
@@ -972,13 +1084,26 @@ def save_2d_display(row, hit_tree, pmt_map, output_path):
         ),
     )
 
+    # ------------------------------------------------------------------
+    # Main title
+    # ------------------------------------------------------------------
+
     fig.suptitle(
-        f"2D PMT display - {energy_display_label(row['energy_MeV'])}",
+        (f"2D PMT display - {energy_display_label(row['energy_MeV'])}"),
         fontsize=16,
         y=0.995,
     )
 
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    # ------------------------------------------------------------------
+    # Save
+    # ------------------------------------------------------------------
+
+    fig.savefig(
+        output_path,
+        dpi=300,
+        bbox_inches="tight",
+    )
+
     plt.close(fig)
 
     return True
