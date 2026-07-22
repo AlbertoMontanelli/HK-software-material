@@ -1,0 +1,78 @@
+# Sample setup macro with no visualization
+
+/WCSim/random/generator HEPJAMES
+/WCSim/random/seed 123456 default
+#/WCSim/random/seed 1
+
+/run/verbose 0
+/tracking/verbose 0
+/hits/verbose 0
+/grdm/verbose 0
+
+## select the geometry
+/WCSim/WCgeom HyperK_HybridmPMT_WithOD_Realistic
+/WCSim/Construct # This must be uncommented in order to construct a new detector configuration.
+
+
+/WCSim/PMTQEMethod     SensitiveDetector_Only
+/WCSim/PMTCollEff on
+/WCSim/SavePi0 false
+
+
+#choose the Trigger & Digitizer type (and options)
+/DAQ/Digitizer SKI
+/DAQ/Trigger NDigits
+
+#grab the other DAQ options (thresholds, timing windows, etc.)
+/control/execute macros/daq.mac
+
+
+# default dark noise frequency (and conversion factor) is PMT property (NEW), set in the code.
+# Below gives possibility to overwrite nominal values, eg. to switch OFF the Dark Noise.
+#/DarkRate/SetDarkRate 0 kHz   #Turn dark noise off
+#/DarkRate/SetDarkRate 4.2 kHz #This is the value for SKI set in SKDETSIM.
+#/DarkRate/SetDarkRate 8.4 kHz #For 20 inch HPDs and Box and Line PMTs, based on High QE 20 inch R3600 dark rate from EGADS nov 2014
+#/DarkRate/SetDarkRate 3.0 kHz #For 12 inch HPDs and Box and Line PMTs, based on High QE 20 inch R3600 dark rate from EGADS nov 2014
+
+# Select which time window(s) to add dark noise to
+/DarkRate/SetDetectorElement tank
+/DarkRate/SetDarkMode 1
+/DarkRate/SetDarkHigh 100000
+/DarkRate/SetDarkLow 0
+/DarkRate/SetDarkWindow 4000
+
+
+
+# Or you can use the G4 Particle Gun
+# for a full list of /gun/ commands see:
+# http://geant4.web.cern.ch/geant4/G4UsersDocuments/UsersGuides/ForApplicationDeveloper/html/Control/UIcommands/_gun_.html
+/particle/select mu+
+/particle/property/stable false
+/particle/property/lifetime 0.5 us
+/particle/property/dump
+
+/mygen/generator gun
+/gun/particle mu+
+/gun/direction 1 0 0 
+/gun/position 0 0 0  
+
+
+## change the name of the output root file, default = wcsim.root
+/WCSimIO/RootFile /output_data/muplus_michel_seed1_TauShort.root
+
+/gun/energy 100 MeV
+/run/beamOn 1000
+
+/gun/energy 200 MeV
+/run/beamOn 1000
+
+/gun/energy 300 MeV
+/run/beamOn 1000
+
+/gun/energy 500 MeV
+/run/beamOn 1000
+
+/gun/energy 800 MeV
+/run/beamOn 1000
+
+#exit

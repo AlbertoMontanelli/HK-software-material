@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --job-name=WCSim
+#SBATCH --output=logs/WCSim_%j.out
+#SBATCH --error=logs/WCSim_%j.err
+#SBATCH --time=14:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=64G
+
+set -euo pipefail
+
+MACRO_FILE="$1"
+
+CONTAINERS_DIR="${SLURM_SUBMIT_DIR}"
+
+apptainer run \
+    --bind "${CONTAINERS_DIR}/data/WCSim_data":/output_data \
+    --bind "${CONTAINERS_DIR}/src/WCSim_macros":/WCSim_macros \
+    "${CONTAINERS_DIR}/WCSim.sif" \
+    "/WCSim_macros/${MACRO_FILE}" \
+    "/opt/WCSim/install/macros/tuning_parameters_hkfd.mac"
