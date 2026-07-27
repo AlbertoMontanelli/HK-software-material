@@ -1,0 +1,65 @@
+#!/bin/bash
+#SBATCH --job-name=muplus_michel
+#SBATCH --output=logs/muplus_michel_%A_%a.out
+#SBATCH --error=logs/muplus_michel_%A_%a.err
+#SBATCH --array=0-4
+#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+
+set -euo pipefail
+
+# Directory from which the job was submitted.
+BASE_DIR="${SLURM_SUBMIT_DIR}"
+
+# One energy value is assigned to each array task.
+ENERGIES=(100 200 300 500 800)
+
+TASK_ID="${SLURM_ARRAY_TASK_ID}"
+ENERGY="${ENERGIES[$TASK_ID]}"
+
+# Use seeds 1, 2, 3, 4, 5 for array tasks 0, 1, 2, 3, 4.
+SEED=$((TASK_ID + 1))
+
+# Name of the output ROOT file for this task.
+OUTPUT_FILE="muplus_michel_E${ENERGY}MeV_seed${SEED}_Tau500ns.root"
+
+# Use the temporary directory provided by SLURM when available.
+# Fall back to TMPDIR or /tmp otherwise.
+TMP_BASE="${SLURM_TMPDIR:-${TMPDIR:-/tmp}}"
+
+# Create a unique temporary directory for this array task.
+WORK_DIR="${TMP_BASE}/wcsim_${USER}_${SLURM_ARRAY_JOB_ID}_${TASK_ID}"
+mkdir -p "${WORK_DIR}"
+
+# Path of the temporary macro generated for this task.
+GENERATED_MACRO="${WORK_DIR}/muplus_michel_E${ENERGY}MeV.mac"
+
+# Generate the actual WCSim macro by replacing the placeholders
+# in the template macro.
+sed \
+    -e "s|@SEED@|${SEED}|g" \
+    -e "s|@ENERGY@|${ENERGY}|g" \
+    -e "s|@OUTPUT_FILE@|${OUTPUT_FILE}|g" \
+    "${BASE_DIR}/src/WCSim_macros/muplus_michel_Tau500ns.mac" \
+    > "${GENERATED_MACRO}"
+
+# Print the configuration of this array task to the SLURM output log.
+echo "SLURM array job ID: ${SLURM_ARRAY_JOB_ID}"
+echo "SLURM task ID:      ${TASK_ID}"
+echo "Energy:             ${ENERGY} MeV"
+echo "Random seed:        ${SEED}"
+echo "Output file:        ${OUTPUT_FILE}"
+echo "Temporary directory:${WORK_DIR}"
+echo "Generated macro:    ${GENERATED_MACRO}"
+
+# Run WCSim inside the Apptainer container.
+apptainer run \
+    --bind "${BASE_DIR}/data/WCSim_data":/output_data \
+    --bind "${WORK_DIR}":/job \
+    "${BASE_DIR}/WCSim.sif" \
+    "/job/$(basename "${GENERATED_MACRO}")" \
+    "/opt/WCSim/install/macros/tuning_parameters_hkfd.mac"
+
+# Remove the temporary macro and task directory after a successful run.
+rm -rf "${WORK_DIR}"
