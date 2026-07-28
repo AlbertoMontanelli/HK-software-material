@@ -58,6 +58,7 @@ from pathlib import Path
 
 import numpy as np
 import ROOT  # type: ignore
+from loguru import logger  # type: ignore
 
 # Truth labels stored in PmtHitMap.
 LABEL_UNKNOWN = 0
@@ -171,8 +172,8 @@ def find_primary_muon(tracks, entry_index):
     ]
 
     if len(candidates) != 1:
-        print(
-            f"WARNING: entry {entry_index}: found {len(candidates)} "
+        logger.warning(
+            f"entry {entry_index}: found {len(candidates)} "
             "primary muon candidates, expected 1."
         )
         return None
@@ -208,8 +209,8 @@ def find_michel_lepton(tracks, muon_track, entry_index):
     ]
 
     if len(candidates) != 1:
-        print(
-            f"WARNING: entry {entry_index}: found {len(candidates)} "
+        logger.warning(
+            f"entry {entry_index}: found {len(candidates)} "
             "Michel electron/positron candidates, expected 1."
         )
         return None
@@ -1303,14 +1304,16 @@ def make_summary_root(input_file, output_file):
     handles = create_output_trees(output_root)
 
     for entry_index in range(n_entries):
+        if entry_index % 100 == 0:
+            logger.info(f"Processing entry {entry_index} / {n_entries}")
         wcsim_tree.GetEntry(entry_index)
 
         n_triggers = int(event.GetNumberOfEvents())
 
         if n_triggers != 1:
             n_wrong_trigger_count += 1
-            print(
-                f"WARNING: entry {entry_index} contains {n_triggers}"
+            logger.warning(
+                f"entry {entry_index} contains {n_triggers}"
                 f" trigger objects; expected exactly 1. Skipping."
             )
             event.ReInitialize()
@@ -1352,7 +1355,7 @@ def make_summary_root(input_file, output_file):
             michel_track=michel_track,
             hit_information=hit_information,
         )
-
+        n_written_events += 1
         event.ReInitialize()
     output_root.cd()
 
@@ -1391,7 +1394,7 @@ def default_output_path(input_file):
 
     input_path = Path(input_file)
 
-    if input_path.suffix == ".root":
+    if input_path.suffix == "_filtered.root":
         return input_path.with_name(input_path.stem + "_summary.root")
 
     return input_path.with_name(input_path.name + "_summary.root")
