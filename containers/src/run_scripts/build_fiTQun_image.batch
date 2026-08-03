@@ -1,0 +1,128 @@
+#!/bin/bash
+#SBATCH --job-name=build_fiTQun
+#SBATCH --output=logs/build_fiTQun_%j.out
+#SBATCH --error=logs/build_fiTQun_%j.err
+#SBATCH --time=14:00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+
+set -euo pipefail
+
+# Main project directory
+PROJECT_DIR="/home/users/montanel/HyperKamiokande/containers"
+
+# Apptainer definition file
+DEF_FILE="${PROJECT_DIR}/src/docker_files/fiTQun.def"
+
+# Final Apptainer image
+OUTPUT_IMAGE="${PROJECT_DIR}/fiTQun.sif"
+
+
+# Prefer a job-specific temporary directory provided by SLURM.
+# Otherwise use TMPDIR, if available and writable.
+# As a final fallback, use /tmp.
+if [ -n "${SLURM_TMPDIR:-}" ] && [ -w "${SLURM_TMPDIR}" ]; then
+    LOCAL_BASE="${SLURM_TMPDIR}/apptainer_fiTQun_${SLURM_JOB_ID}"
+
+elif [ -n "${TMPDIR:-}" ] && [ -w "${TMPDIR}" ]; then
+    LOCAL_BASE="${TMPDIR}/apptainer_fiTQun_${USER}_${SLURM_JOB_ID}"
+
+else
+    LOCAL_BASE="/tmp/${USER}/apptainer_fiTQun_${SLURM_JOB_ID}"
+fi
+
+export APPTAINER_CACHEDIR="${LOCAL_BASE}/cache"
+export APPTAINER_TMPDIR="${LOCAL_BASE}/tmp"
+
+
+
+# Cleanup temporary files when the job exits
+cleanup() {
+    exit_status=$?
+    rm -rf "${LOCAL_BASE}"
+
+    exit "${exit_status}"
+}
+
+# Execute cleanup() when the script is finished
+trap cleanup EXIT
+
+
+
+# Create the temporary directories.
+mkdir -p "${APPTAINER_CACHEDIR}"
+mkdir -p "${APPTAINER_TMPDIR}"
+
+
+cd "${PROJECT_DIR}"
+
+# Credentials for the private Hyper-K GitLab registry
+export APPTAINER_DOCKER_USERNAME="AMONTANELLI"
+export APPTAINER_DOCKER_PASSWORD="$(< "${HOME}/.gitlab_registry_token")"
+
+apptainer build \
+    --force \
+    "${OUTPUT_IMAGE}" \
+    "${DEF_FILE}"
+
+unset APPTAINER_DOCKER_PASSWORD
+
+
+# ----------------------------------------------------------------------
+# Validate the resulting image
+# ----------------------------------------------------------------------
+
+echo
+echo "=== Checking resulting image ==="
+
+if [ ! -f "${OUTPUT_IMAGE}" ]; then
+    echo "ERROR: the output image was not created:"
+    echo "       ${OUTPUT_IMAGE}"
+    exit 1
+fi
+
+ls -lh "${OUTPUT_IMAGE}"
+
+
+echo
+echo "=== Checking fiTQun installation inside the image ==="
+
+apptainer exec "${OUTPUT_IMAGE}" bash -c '
+    set -euo pipefail
+
+    source /opt/setup_fitqun.sh
+
+    echo "FITQUN_ROOT=${FITQUN_ROOT}"
+    echo "FITQUN_INSTALL=${FITQUN_INSTALL}"
+    echo "ROOT_INSTALL=${ROOT_INSTALL}"
+    echo "WCSIMROOT_INSTALL=${WCSIMROOT_INSTALL}"
+
+    echo
+    echo "runfiTQun executable:"
+    command -v runfiTQun
+
+    test -x "$(command -v runfiTQun)"
+    test -f /opt/fitqun_build_info.txt
+
+    echo
+    echo "fiTQun build information:"
+    cat /opt/fitqun_build_info.txt
+
+    echo
+    echo "Required constants:"
+    test -f "${FITQUN_ROOT}/const/fiTQun_scattablesF_HyperK.root"
+    test -f "${FITQUN_ROOT}/const/angResp_HyperK_20inchBandL.root"
+    test -f "${FITQUN_ROOT}/const/cPDFpar_20inchBandL.root"
+    test -f "${FITQUN_ROOT}/const/11_tpdfpar_HyperK_20inchBandL.root"
+    test -f "${FITQUN_ROOT}/const/13_tpdfpar_HyperK_20inchBandL.root"
+    test -f "${FITQUN_ROOT}/const/211_tpdfpar_HyperK_20inchBandL.root"
+
+    echo "All required checks passed."
+'
+
+
+echo
+echo "=== fiTQun image built successfully ==="
+echo "Image created at:"
+echo "${OUTPUT_IMAGE}"

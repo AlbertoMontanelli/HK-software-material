@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 """
 Create a compact ROOT summary for single-trigger muon + Michel-lepton
 WCSim samples.
@@ -56,7 +54,7 @@ import argparse
 from array import array
 from pathlib import Path
 
-import numpy as np
+import numpy as np  # type: ignore
 import ROOT  # type: ignore
 from loguru import logger  # type: ignore
 
