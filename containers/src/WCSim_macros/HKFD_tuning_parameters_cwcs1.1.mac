@@ -1,0 +1,15 @@
+# HKFD optical tuning used for the cwcs1.1 particle-gun production.
+
+/WCSim/tuning/abwff 1.30
+/WCSim/tuning/rgcff 0.32
+/WCSim/tuning/rayff 0.75
+/WCSim/tuning/bsrff 2.50
+/WCSim/tuning/mieff 0.0
+
+/WCSim/tuning/topveto 0
+/WCSim/tuning/tvspacing 100
+
+/WCSim/tuning/PMTCathodePara data/CathodeParameters.txt
+
+/WCSim/tuning/WCODWLSCladdingReflectivity 0.90
+/WCSim/tuning/WCODTyvekReflectivity 0.90

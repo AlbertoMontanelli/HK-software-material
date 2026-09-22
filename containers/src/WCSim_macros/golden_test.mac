@@ -1,0 +1,71 @@
+# Minimal HKFD cwcs1.1 particle-gun test.
+
+/run/verbose 0
+/tracking/verbose 0
+/hits/verbose 0
+/grdm/verbose 0
+
+# Reproducible random seed.
+/WCSim/random/generator HEPJAMES
+/WCSim/random/seed 1
+
+# Detector geometry.
+/WCSim/WCgeom HyperK_HybridmPMT_WithOD_Realistic
+/WCSim/Construct
+
+# PMT response.
+/WCSim/PMTQEMethod SensitiveDetector_Only
+/WCSim/PMTCollEff on
+/WCSim/SavePi0 false
+
+# Digitizer and trigger.
+/DAQ/Digitizer SKI
+/DAQ/Trigger NDigits
+
+/DAQ/DigitizerOpt/DeadTime 560 ns
+/DAQ/DigitizerOpt/IntegrationWindow 200 ns
+/DAQ/DigitizerOpt/TimingPrecision 0.1 ns
+/DAQ/DigitizerOpt/PEPrecision 0.3
+
+/DAQ/MultiDigitsPerTrigger true
+/DAQ/TriggerSaveFailures/Mode 0
+
+/DAQ/TriggerNDigits/Threshold 25
+/DAQ/TriggerNDigits/AdjustForNoise true
+/DAQ/TriggerNDigits/Window 200 ns
+/DAQ/TriggerNDigits/PreTriggerWindow -400 ns
+/DAQ/TriggerNDigits/PostTriggerWindow 950 ns
+
+# Dark noise: 20-inch ID PMTs.
+/DarkRate/SetDetectorElement tank
+/DarkRate/SetDarkRate 4.2 kHz
+/DarkRate/SetConvert 1.1125
+/DarkRate/SetDarkMode 1
+/DarkRate/SetDarkWindow 4000
+
+# Dark noise: OD.
+/DarkRate/SetDetectorElement OD
+/DarkRate/SetDarkRate 1.0 kHz
+/DarkRate/SetConvert 1.3554
+/DarkRate/SetDarkMode 1
+/DarkRate/SetDarkWindow 4000
+
+# Dark noise: mPMTs.
+/DarkRate/SetDetectorElement tankPMT2
+/DarkRate/SetDarkRate 1.0 kHz
+/DarkRate/SetConvert 1.1096
+/DarkRate/SetDarkMode 1
+/DarkRate/SetDarkWindow 4000
+
+# Particle gun.
+/mygen/generator gun
+/gun/particle e-
+/gun/energy 500 MeV
+/gun/direction 1 0 0
+/gun/position 0 0 0
+
+# Output.
+/WCSimIO/RootFile /home/users/montanel/HyperKamiokande/containers/data/WCSim_data/golden_test_WCSim.root
+
+# One event.
+/run/beamOn 1
