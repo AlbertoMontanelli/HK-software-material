@@ -1,0 +1,89 @@
+#!/bin/bash
+#SBATCH --job-name=muplus_MultipleJobs
+#SBATCH --output=logs/muplus_MultipleJobs_%A_%a.out
+#SBATCH --error=logs/muplus_MultipleJobs_%A_%a.err
+#SBATCH --partition=levante
+#SBATCH --account=default
+#SBATCH --array=0-49
+#SBATCH --time=08:00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+
+set -euo pipefail
+
+# Directory from which sbatch was submitted.
+BASE_DIR="${SLURM_SUBMIT_DIR}"
+
+# Production configuration.
+NEVENTS=1000
+TASK_ID="${SLURM_ARRAY_TASK_ID}"
+
+# Use one different deterministic seed for each task.
+SEED=$((TASK_ID + 1))
+
+# Output ROOT file for this task.
+OUTPUT_FILE="muplus_michel_gps_Tau500ns_seed${SEED}.root"
+
+# Template WCSim macro.
+TEMPLATE_MACRO="${BASE_DIR}/src/WCSim_macros/muplus_michel_Tau500ns_gps_MultipleJobs.mac"
+
+# HKFD cwcs1.1 tuning file.
+TUNING_FILE="HKFD_tuning_parameters_cwcs1.1.mac"
+
+# Output directory.
+OUTPUT_DIR="${BASE_DIR}/data/WCSim_data"
+
+# hk_prod_0.2.13_dev sandbox.
+SANDBOX="${BASE_DIR}/hk_prod_0.2.13_dev"
+
+# Use the node-local temporary directory when available.
+TMP_BASE="${SLURM_TMPDIR:-${TMPDIR:-/tmp}}"
+WORK_DIR="${TMP_BASE}/wcsim_${USER}_${SLURM_ARRAY_JOB_ID}_${TASK_ID}"
+
+mkdir -p "${WORK_DIR}"
+mkdir -p "${OUTPUT_DIR}"
+
+# Temporary macro specific to this array task.
+GENERATED_MACRO="${WORK_DIR}/muplus_michel_GPS_Tau500ns_seed${SEED}.mac"
+
+sed \
+    -e "s|@SEED@|${SEED}|g" \
+    -e "s|@OUTPUT_FILE@|${OUTPUT_FILE}|g" \
+    -e "s|@NEVENTS@|${NEVENTS}|g" \
+    "${TEMPLATE_MACRO}" \
+    > "${GENERATED_MACRO}"
+
+echo "=========================================="
+echo "SLURM array job ID : ${SLURM_ARRAY_JOB_ID}"
+echo "SLURM task ID      : ${TASK_ID}"
+echo "Events             : ${NEVENTS}"
+echo "Random seed        : ${SEED}"
+echo "Output file        : ${OUTPUT_FILE}"
+echo "Temporary macro    : ${GENERATED_MACRO}"
+echo "=========================================="
+
+apptainer exec \
+    --bind "${OUTPUT_DIR}":/output_data \
+    --bind "${BASE_DIR}/src/WCSim_macros":/WCSim_macros:ro \
+    --bind "${WORK_DIR}":/job:ro \
+    "${SANDBOX}" \
+    bash -c '
+        set -eo pipefail
+
+        source /opt/HyperK/Geant4/install/bin/geant4.sh
+        source /opt/HyperK/root_build/bin/thisroot.sh
+        source /opt/HyperK/WCSim-install/bin/this_wcsim.sh
+
+        # The cwcs1.1 tuning file uses paths relative to the WCSim install.
+        cd /opt/HyperK/WCSim-install
+
+        exec WCSim \
+            "/job/$1" \
+            "/WCSim_macros/$2"
+    ' _ \
+    "$(basename "${GENERATED_MACRO}")" \
+    "${TUNING_FILE}"
+
+# Remove temporary files after a successful run.
+rm -rf "${WORK_DIR}"
