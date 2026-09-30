@@ -1,0 +1,67 @@
+#!/bin/bash
+#SBATCH --job-name=fitqun_1trigg
+#SBATCH --output=logs/fitqun_1trigg_%A_%a.out
+#SBATCH --error=logs/fitqun_1trigg_%A_%a.err
+#SBATCH --partition=levante
+#SBATCH --account=default
+#SBATCH --array=0-190
+#SBATCH --time=14:00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
+
+set -euo pipefail
+
+# Directory from which sbatch was submitted.
+BASE_DIR="${SLURM_SUBMIT_DIR}"
+
+# Input sample.
+INPUT_FILE="muplus_michel_gps_Tau500ns_WCSim_1trigg.root"
+
+# Total number of events in the filtered file.
+TOTAL_EVENTS=38200
+
+# Number of events processed by each array task.
+EVENTS_PER_JOB=200
+
+# First event processed by this task.
+START_EVENT=$((SLURM_ARRAY_TASK_ID * EVENTS_PER_JOB))
+
+# Number of events remaining from START_EVENT to the end of the sample.
+REMAINING=$((TOTAL_EVENTS - START_EVENT))
+
+# Protect against an invalid array index.
+if (( REMAINING <= 0 )); then
+    echo "No events left for task ${SLURM_ARRAY_TASK_ID}"
+    exit 0
+fi
+
+# Normally process EVENTS_PER_JOB events.
+# The last task may contain fewer events.
+if (( REMAINING < EVENTS_PER_JOB )); then
+    NUM_EVENTS="${REMAINING}"
+else
+    NUM_EVENTS="${EVENTS_PER_JOB}"
+fi
+
+END_EVENT=$((START_EVENT + NUM_EVENTS - 1))
+
+# Zero-padded task number for easier file ordering.
+printf -v PART "%03d" "${SLURM_ARRAY_TASK_ID}"
+
+OUTPUT_FILE="muplus_michel_1trigg_fiTQun_part${PART}.root"
+
+echo "================================================="
+echo "SLURM task:     ${SLURM_ARRAY_TASK_ID}"
+echo "Input file:     ${INPUT_FILE}"
+echo "Start event:    ${START_EVENT}"
+echo "Number events:  ${NUM_EVENTS}"
+echo "End event:      ${END_EVENT}"
+echo "Output file:    ${OUTPUT_FILE}"
+echo "================================================="
+
+bash "${BASE_DIR}/src/run_scripts/run_fiTQun.sh" \
+    "${INPUT_FILE}" \
+    "${NUM_EVENTS}" \
+    "${OUTPUT_FILE}" \
+    "${START_EVENT}"

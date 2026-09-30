@@ -2,7 +2,7 @@
 # Run fiTQun inside the hk_prod_0.2.13_dev sandbox.
 #
 # Usage:
-#   ./src/run_scripts/run_fiTQun.sh <input_file> <num_events> <output_file>
+#   ./src/run_scripts/run_fiTQun.sh <input_file> <num_events> <output_file> [skip_events]
 #
 # The input WCSim ROOT file is searched in:
 #   data/WCSim_data/
@@ -34,6 +34,7 @@ TUNING_DIR="${FITQUN_CONFIG_DIR}/fitqun-tuning-files-0.1.0/const"
 INPUT_FILE="$1"
 NUM_EVENTS="$2"
 OUTPUT_FILE="$3"
+SKIP_EVENTS="${4:-0}"
 
 mkdir -p "${FITQUN_DATA_DIR}"
 
@@ -54,8 +55,9 @@ apptainer exec \
         cd "${FITQUN_ROOT}"
 
         exec ./runfiTQunWC \
+            -s "$4" \
             -n "$1" \
             -p /fiTQun_config/test_fitqun.parameters.dat \
             -r "/fiTQun_data/$3" \
             "/WCSim_data/$2"
-    ' _ "${NUM_EVENTS}" "${INPUT_FILE}" "${OUTPUT_FILE}"
+    ' _ "${NUM_EVENTS}" "${INPUT_FILE}" "${OUTPUT_FILE}" "${SKIP_EVENTS}"

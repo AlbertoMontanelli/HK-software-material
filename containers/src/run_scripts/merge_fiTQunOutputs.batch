@@ -1,0 +1,26 @@
+#!/bin/bash
+#SBATCH --job-name=merge_fiTQunOutputs
+#SBATCH --output=logs/merge_fiTQunOutputs_%A.out
+#SBATCH --error=logs/merge_fiTQunOutputs_%A.err
+#SBATCH --partition=levante
+#SBATCH --account=default
+#SBATCH --time=08:00:00
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+
+BASE_DIR="${SLURM_SUBMIT_DIR}"
+
+apptainer exec \
+    --bind "${BASE_DIR}/data/WCSim_data":/WCSim_data \
+    --bind "${BASE_DIR}/data/fiTQun_data":/fiTQun_data \
+    --bind "${BASE_DIR}/src/scripts":/scripts \
+    --bind "${BASE_DIR}/plots":/plots \
+    "${BASE_DIR}/WCSimRootPyROOT.sif" \
+    bash -c '
+        cd /fiTQun_data
+
+        hadd -j "$SLURM_CPUS_PER_TASK" \
+            muplus_michel_gps_Tau500ns_fiTQun.root \
+            muplus_michel_1trigg_fiTQun_part{000..190}.root
+    '

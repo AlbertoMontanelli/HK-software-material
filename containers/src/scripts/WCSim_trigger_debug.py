@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 
 import ROOT  # type: ignore
@@ -66,7 +64,7 @@ def main(input_file, show_methods=False, event_idx=-1):
         n_wcsim_objects = int(event.GetNumberOfEvents())
         has_subevents = bool(event.HasSubEvents())
         if n_wcsim_objects == 2 and has_subevents:
-            print(f"Warning: Event {event_index} has {n_wcsim_objects} triggers")
+            # print(f"Warning: Event {event_index} has {n_wcsim_objects} triggers")
             N_DOUBLE_TRIGGERS += 1
         elif n_wcsim_objects > 2:
             print()
